@@ -23,6 +23,15 @@ source .venv/bin/activate
 uv sync --all-extras
 ```
 
+### Peripherals
+
+```bash
+# SpaceMouse
+sudo ./scripts/setup/spacemouse.sh
+# verify install
+systemctl status spacenavd
+```
+
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)
 - [`real-stanford/universal_manipulation_interface`](https://github.com/real-stanford/universal_manipulation_interface)
