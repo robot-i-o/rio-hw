@@ -18,6 +18,7 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "atomics",  # shared memory
+    "zerorpc",  # middleware (optional)
 ]
 
 [project.optional-dependencies]
