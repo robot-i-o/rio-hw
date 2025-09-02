@@ -32,6 +32,11 @@ sudo ./scripts/setup/spacemouse.sh
 systemctl status spacenavd
 ```
 
+# Usage
+
+### Robot arms
+- [`docs/xarm.md`](docs/xarm.md)
+
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)
 - [`real-stanford/universal_manipulation_interface`](https://github.com/real-stanford/universal_manipulation_interface)

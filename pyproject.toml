@@ -17,6 +17,7 @@ dynamic = ["version", "readme"]
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
+    "scipy",
     "atomics",  # shared memory
     "zerorpc",  # middleware (optional)
 ]
@@ -26,6 +27,10 @@ dev = ["ruff"]
 # --- interfaces ---
 spacemouse = [
     "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz",
+]
+# --- robots ---
+xarm = [
+    "xarm-python-sdk==1.17.0",
 ]
 
 [tool.setuptools.packages.find]
