@@ -14,29 +14,37 @@ class RingBuffer(Generic[T]):
         self.write_lock = RLock()
         self.read_lock = RLock()
 
-    def write(self, item: T) -> None:
+    def put(self, item: T) -> None:
         """Write item to buffer with minimal locking"""
         with self.write_lock:
             self.buffer.append(item)
 
-    def read_last(self, n: int) -> list[T]:
+    def get(self, out=None) -> T:
+        with self.read_lock:
+            return list(self.buffer)[-1]
+
+    def get_last_k(self, k: int, out=None) -> list[T]:
         """
-        Read last n items from buffer efficiently using deque's optimized operations
+        Read last k items from buffer efficiently using deque's optimized operations
         and avoiding unnecessary copies
         """
         with self.read_lock:
             buffer_len = len(self.buffer)
-            if n > buffer_len:
-                n = buffer_len
-            if n == 0:
+            if k > buffer_len:
+                k = buffer_len
+            if k == 0:
                 return []
 
-            # For small n, direct slicing is fine
-            if n <= 100:
-                return list(self.buffer)[-n:]
+            # For small k, direct slicing is fine
+            if k <= 100:
+                return list(self.buffer)[-k:]
 
-            # For large n, use islice which is more memory efficient
-            return list(islice(self.buffer, buffer_len - n, buffer_len))
+            # For large k, use islice which is more memory efficient
+            return list(islice(self.buffer, buffer_len - k, buffer_len))
+
+    def get_all(self, out=None) -> list[T]:
+        with self.read_lock:
+            return list(self.buffer)
 
     def clear(self) -> None:
         """Clear the buffer"""

@@ -3,8 +3,9 @@ from multiprocessing.managers import SharedMemoryManager
 from queue import Empty, Full
 
 import numpy as np
-from diffusion_policy.shared_memory.shared_memory_util import ArraySpec, SharedAtomicCounter
-from diffusion_policy.shared_memory.shared_ndarray import SharedNDArray
+
+from .shared_memory_util import ArraySpec, SharedAtomicCounter
+from .shared_ndarray import SharedNDArray
 
 
 class SharedMemoryQueue:
