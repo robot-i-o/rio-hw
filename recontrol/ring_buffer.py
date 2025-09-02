@@ -1,8 +1,7 @@
-import array
 from collections import deque
 from itertools import islice
-from threading import Lock, RLock
-from typing import Deque, Generic, List, Optional, TypeVar
+from threading import RLock
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -11,7 +10,7 @@ class RingBuffer(Generic[T]):
     def __init__(self, size: int):
         self.size = size
         # Use a single deque as the main storage
-        self.buffer: Deque[Optional[T]] = deque(maxlen=size)
+        self.buffer: deque[T | None] = deque(maxlen=size)
         self.write_lock = RLock()
         self.read_lock = RLock()
 
@@ -20,7 +19,7 @@ class RingBuffer(Generic[T]):
         with self.write_lock:
             self.buffer.append(item)
 
-    def read_last(self, n: int) -> List[T]:
+    def read_last(self, n: int) -> list[T]:
         """
         Read last n items from buffer efficiently using deque's optimized operations
         and avoiding unnecessary copies
