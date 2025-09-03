@@ -359,7 +359,7 @@ class XArmReceiveInterface(th.Thread):
         size = XArmSocket.bytes_to_u32(buffer[:4])
 
         # Main loop
-        it = 0
+        not_ready = True
         rate = time.Rate(XArmSocket.FREQ)
         while not self.exit_event.is_set():
             buffer += sock.recv(size - len(buffer))
@@ -370,9 +370,9 @@ class XArmReceiveInterface(th.Thread):
             state = XArmSocket.bytes_to_state(data)
             self._put(state)
             rate.precise_sleep()
-            if it == 0:
+            if not_ready:
                 self.ready_event.set()
-            it += 1
+                not_ready = False
         sock.close()
 
     def _put(self, robot_state):
