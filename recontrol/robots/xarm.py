@@ -151,7 +151,7 @@ class XArm:
 
             arm.set_mode(0)
             code = arm.set_state(0)
-            assert code == 0, print("Check whether e-stop button is pressed.")
+            assert code == 0, "Check whether e-stop button is pressed."
             # arm.reset(wait=True)
             # arm.move_gohome(wait=True)
 
@@ -316,7 +316,7 @@ class XArmSocket:
         return pose
 
     def bytes_to_state(data):
-        state = dict()
+        state = {}
         for key, (start, end) in XArmSocket.P30000.items():
             state[key] = XArmSocket.bytes_to_fp32_list(data[start - 1 : end])
         # state["TargetTCPPoseRPY"] = XArmSocket.pose_aa_to_rpy(state["TargetTCPPose"])
