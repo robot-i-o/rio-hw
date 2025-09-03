@@ -200,7 +200,7 @@ class XArm:
 
                 # fetch request from queue with timeout
                 try:
-                    req = self.input_queue.get()
+                    req = self.request_queue.get()
                     if isinstance(req, dict):
                         req = Request(req.pop("type"), req)
                 except queue.Empty:
@@ -263,7 +263,7 @@ class XArm:
             "target_pose": pose,
             "target_time": target_time,
         }
-        self.input_queue.put(req)
+        self.request_queue.put(req)
 
 
 class XArmSocket:

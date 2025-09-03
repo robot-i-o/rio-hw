@@ -40,7 +40,7 @@ class ThreadClient(th.Thread, Node):
 
     def __post_init__(self):
         if self.example_request is not None:
-            self.input_queue = queue.Queue(self.max_queue_size)
+            self.request_queue = queue.Queue(self.max_queue_size)
         assert self.example_data is not None
         self.ring_buffer = RingBuffer(self.max_buffer_size)
         self.ready_event = th.Event()

@@ -50,7 +50,7 @@ class ShmClient(mp.Process, Node):
             self.smm.start()
 
         if self.example_request is not None:
-            self.input_queue = SharedMemoryQueue.create_from_examples(
+            self.request_queue = SharedMemoryQueue.create_from_examples(
                 shm_manager=self.smm,
                 examples=self.example_request,
                 buffer_size=self.max_queue_size,
