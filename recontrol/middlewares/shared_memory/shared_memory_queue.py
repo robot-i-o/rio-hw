@@ -72,7 +72,7 @@ class SharedMemoryQueue:
     def clear(self):
         self.read_counter.store(self.write_counter.load())
 
-    def put(self, data: dict[str, np.ndarray | numbers.Number]):
+    def put(self, data: dict[str, np.ndarray | numbers.Number], timeout=None):
         read_count = self.read_counter.load()
         write_count = self.write_counter.load()
         n_data = write_count - read_count
@@ -93,7 +93,7 @@ class SharedMemoryQueue:
         # update idx
         self.write_counter.add(1)
 
-    def get(self, out=None) -> dict[str, np.ndarray]:
+    def get(self, out=None, timeout=None) -> dict[str, np.ndarray]:
         write_count = self.write_counter.load()
         read_count = self.read_counter.load()
         n_data = write_count - read_count
@@ -112,7 +112,7 @@ class SharedMemoryQueue:
         self.read_counter.add(1)
         return out
 
-    def get_k(self, k, out=None) -> dict[str, np.ndarray]:
+    def get_k(self, k, out=None, timeout=None) -> dict[str, np.ndarray]:
         write_count = self.write_counter.load()
         read_count = self.read_counter.load()
         n_data = write_count - read_count
@@ -124,7 +124,7 @@ class SharedMemoryQueue:
         self.read_counter.add(k)
         return out
 
-    def get_all(self, out=None) -> dict[str, np.ndarray]:
+    def get_all(self, out=None, timeout=None) -> dict[str, np.ndarray]:
         write_count = self.write_counter.load()
         read_count = self.read_counter.load()
         n_data = write_count - read_count
