@@ -1,9 +1,9 @@
 import functools
-import pickle
 import queue
 import threading as th
 
 from ..ring_buffer import RingBuffer
+from ..serializers import PickleSerializer
 from ._middleware import Node
 
 try:
@@ -62,7 +62,7 @@ class ZeroRpcServer(th.Thread, Node):
             assert callable(fn)
 
             def fn_wrapper(*args, __f=fn, **kwargs):
-                return pickle.dumps(__f(*args, **kwargs))
+                return PickleSerializer.pack(__f(*args, **kwargs))
 
             wrapped = functools.wraps(fn)(fn_wrapper)
             if isinstance(attr, classmethod):
@@ -108,7 +108,7 @@ class ZeroRpcClient(Node):
         for fn_name in self.__api__:
 
             def fn(n):
-                return lambda *args, **kwargs: pickle.loads(self.proxy(n, *args, **kwargs))
+                return lambda *args, **kwargs: PickleSerializer.unpack(self.proxy(n, *args, **kwargs))
 
             setattr(self, fn_name, fn(fn_name))
 
