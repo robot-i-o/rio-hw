@@ -3,6 +3,7 @@ from typing import Any, Protocol
 
 
 class Node(Protocol):
+    __api__: list[str]
     example_data: Any
     example_request: Any
     ring_buffer: Any
