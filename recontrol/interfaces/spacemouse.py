@@ -11,6 +11,8 @@ except ImportError:
 
 class Spacemouse:
     __api__ = [
+        "get_state",
+        "get_all_state",
         "get_motion_state_transformed",
         "is_button_pressed",
     ]
@@ -60,8 +62,8 @@ class Spacemouse:
         self.worker = None
         self.example_request = None
         self.example_data = {
-            # 3 translation, 3 rotation, 1 period
-            "motion_event": np.zeros((7,), dtype=np.int64),
+            # 3 translation, 3 rotation
+            "motion_state_transformed": np.zeros((6,), dtype=self.dtype),
             # left and right button
             "button_state": np.zeros((self.n_buttons,), dtype=bool),
             "timestamp": time.now(),
@@ -74,11 +76,12 @@ class Spacemouse:
 
             # Initialize state
             motion_event = np.zeros((7,), dtype=np.int64)
+            motion_state_transformed = np.zeros((6,), dtype=self.dtype)
             button_state = np.zeros((self.n_buttons,), dtype=bool)
             timestamp = time.now()
             # Store initial state in ring buffer
             data_frame = {
-                "motion_event": motion_event,
+                "motion_state_transformed": motion_state_transformed,
                 "button_state": button_state,
                 "timestamp": timestamp,
             }
@@ -97,9 +100,11 @@ class Spacemouse:
                 elif isinstance(event, spnav.SpnavButtonEvent):
                     if 0 <= event.bnum < self.n_buttons:
                         button_state[event.bnum] = event.press
+                motion_state_transformed = self._get_motion_state_transformed(motion_event)
+
                 # Store current state in ring buffer
                 data_frame = {
-                    "motion_event": np.copy(motion_event),
+                    "motion_state_transformed": motion_state_transformed,
                     "button_state": np.copy(button_state),
                     "timestamp": timestamp,
                 }
@@ -112,15 +117,14 @@ class Spacemouse:
         finally:
             spnav.spnav_close()
 
-    def _get_motion_state(self):
+    def _get_motion_state(self, motion_event):
         """Get the current motion state normalized by max_value and apply deadzone"""
-        data = self.ring_buffer.get()
-        state = np.array(data["motion_event"][:6], dtype=self.dtype) / self.max_value
+        state = np.array(motion_event[:6], dtype=self.dtype) / self.max_value
         is_dead = (-self.deadzone < state) & (state < self.deadzone)
         state[is_dead] = 0
         return state
 
-    def get_motion_state_transformed(self):
+    def _get_motion_state_transformed(self, motion_event):
         """
         Return in right-handed coordinate
         z
@@ -131,21 +135,31 @@ class Spacemouse:
         x
         back
         """
-        state = self._get_motion_state()
+        state = self._get_motion_state(motion_event)
         tf_state = np.zeros_like(state)
         tf_state[:3] = self.tx_zup_spnav @ state[:3]
         tf_state[3:] = self.tx_zup_spnav @ state[3:]
         return tf_state
 
-    def _get_button_state(self):
-        """Get the current button state"""
-        data = self.ring_buffer.get()
-        return data["button_state"]
+    def get_state(self, k=None, out=None):
+        if k is None:
+            return self.ring_buffer.get(out=out)
+        else:
+            return self.ring_buffer.get_last_k(k=k, out=out)
+
+    def get_all_state(self):
+        return self.ring_buffer.get_all()
+
+    def get_motion_state_transformed(self):
+        state = self.get_state()
+        return state["motion_state_transformed"]
 
     def is_button_pressed(self, button_id):
         """Check if a specific button is pressed"""
         if 0 <= button_id < self.n_buttons:
-            return self._get_button_state()[button_id]
+            state = self.get_state()
+            button_state = state["button_state"]
+            return button_state[button_id]
         return False
 
 
