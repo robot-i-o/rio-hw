@@ -1,5 +1,5 @@
 from typing import Protocol
 
 
-class Robot(Protocol):
+class Arm(Protocol):
     pass
