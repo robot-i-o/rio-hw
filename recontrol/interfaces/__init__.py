@@ -1,1 +1,1 @@
-from .spacemouse import Spacemouse
+from .spacemouse import SpacemouseClient, SpacemouseServer

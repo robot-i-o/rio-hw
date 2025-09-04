@@ -44,12 +44,13 @@ class ZeroRpcServer(th.Thread, Node):
 
         self.server_thread = th.Thread(target=run_server, daemon=True)
 
-        if self.example_request is not None:
-            self.request_queue = queue.Queue(self.max_queue_size)
-        assert self.example_data is not None
-        self.ring_buffer = RingBuffer(self.max_buffer_size)
-        self.ready_event = th.Event()
+        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.example_data is not None else None
+        self.request_queue = queue.Queue(self.max_queue_size) if self.example_request is not None else None
+        self.pub_ready_event = th.Event() if self.example_data is not None else None
+        self.req_ready_event = th.Event() if self.example_request is not None else None
         self.exit_event = th.Event()
+        self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
+        self.main_thread = super()  # self.run
 
     def __init_subclass__(cls, **kwargs):  # create wrappers to pickle output of api methods
         super().__init_subclass__(**kwargs)
@@ -72,14 +73,26 @@ class ZeroRpcServer(th.Thread, Node):
             setattr(cls, fn_name, wrapped)
 
     def start(self):
-        super().start()
-        self.ready_event.wait(self.timeout)
-        assert self.is_alive()
+        if self.worker_thread is not None:
+            self.worker_thread.start()
+        self.main_thread.start()
+        if self.pub_ready_event is not None:
+            self.pub_ready_event.wait(timeout=self.timeout)
+        if self.req_ready_event is not None:
+            self.req_ready_event.wait(timeout=self.timeout)
+        if self.worker_thread is not None:
+            assert self.worker_thread.is_alive()
+        assert self.main_thread.is_alive()
+
         self.server_thread.start()
+        assert self.server_thread.is_alive()
 
     def stop(self):
         self.exit_event.set()
-        self.join(self.timeout)
+        if self.worker_thread is not None:
+            self.worker_thread.join(self.timeout)
+        self.main_thread.join(self.timeout)
+
         self.server_thread.join(self.timeout)
 
 

@@ -2,7 +2,6 @@ import os
 import queue
 import socket
 import struct
-import threading as th
 from enum import Enum, auto
 
 import numpy as np
@@ -106,31 +105,73 @@ class XArm:
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
+        dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
+        example_robot_state = XArmSocket.bytes_to_state(dummy_data)
+        example_robot_state = {k: np.array(v) for k, v in example_robot_state.items()}
+
+        self.run = self.req
+        self.worker = self.pub
         self.example_request = {
             "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
             "target_pose": np.zeros((6,), dtype=np.float32),
             "target_time": time.now(),
         }
-
-        dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
-        example_robot_state = XArmSocket.bytes_to_state(dummy_data)
-        example_robot_state = {k: np.array(v) for k, v in example_robot_state.items()}
         self.example_data = {
             **example_robot_state,
             "timestamp": time.now(),
         }
         super().__post_init__()
 
-        self.arm_c = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)
-        self.arm_r = XArmReceiveInterface(self.robot_ip, self.ring_buffer, self.timeout)
+        self.arm = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)
 
-    def run(self):
+    def pub(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setblocking(True)
+        sock.settimeout(1)
+        sock.connect((self.robot_ip, XArmSocket.PORT))
+
+        buffer = sock.recv(4)
+        while len(buffer) < 4:
+            buffer += sock.recv(4 - len(buffer))
+        size = XArmSocket.bytes_to_u32(buffer[:4])
+
+        # Main loop
+        not_ready = True
+        rate = time.Rate(XArmSocket.FREQ)
+        while not self.exit_event.is_set():
+            buffer += sock.recv(size - len(buffer))
+            if len(buffer) < size:
+                continue
+            data = buffer[:size]
+            buffer = buffer[size:]
+            state = XArmSocket.bytes_to_state(data)
+            self._put(state)
+            rate.precise_sleep()
+            if not_ready:
+                self.pub_ready_event.set()
+                not_ready = False
+        sock.close()
+
+    def _put(self, robot_state):
+        robot_state = {k: np.array(v) for k, v in robot_state.items()}
+        robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
+        robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
+        robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
+        robot_state["ActualTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
+        data = {
+            **robot_state,
+            "timestamp": time.now(),
+        }
+        self.ring_buffer.put(data)
+
+    def req(self):
         try:
             # enable soft real-time
             if self.soft_real_time:
                 os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
 
-            arm = self.arm_c
+            arm = self.arm
 
             # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
             # arm.set_tcp_jerk(7000)
@@ -188,8 +229,8 @@ class XArm:
 
             # Main loop
             dt = 1.0 / self.freq
-            self.ready_event.set()
             rate = time.Rate(self.freq)
+            self.req_ready_event.set()
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
@@ -322,70 +363,6 @@ class XArmSocket:
         # state["TargetTCPPoseRPY"] = XArmSocket.pose_aa_to_rpy(state["TargetTCPPose"])
         # state["ActualTCPPoseRPY"] = XArmSocket.pose_aa_to_rpy(state["ActualTCPPose"])
         return state
-
-
-class XArmReceiveInterface(th.Thread):
-    def __init__(self, robot_ip, ring_buffer, timeout, daemon=True):
-        super().__init__(daemon=daemon)
-        self.robot_ip = robot_ip
-        self.ring_buffer = ring_buffer
-        self.timeout = timeout
-        self.__post_init__()
-        self.start()
-
-    def __post_init__(self):
-        self.ready_event = th.Event()
-        self.exit_event = th.Event()
-
-    def start(self):
-        super().start()
-        self.ready_event.wait(self.timeout)
-        assert self.is_alive()
-
-    def stop(self):
-        self.exit_event.set()
-        self.join(self.timeout)
-
-    def run(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setblocking(True)
-        sock.settimeout(1)
-        sock.connect((self.robot_ip, XArmSocket.PORT))
-
-        buffer = sock.recv(4)
-        while len(buffer) < 4:
-            buffer += sock.recv(4 - len(buffer))
-        size = XArmSocket.bytes_to_u32(buffer[:4])
-
-        # Main loop
-        not_ready = True
-        rate = time.Rate(XArmSocket.FREQ)
-        while not self.exit_event.is_set():
-            buffer += sock.recv(size - len(buffer))
-            if len(buffer) < size:
-                continue
-            data = buffer[:size]
-            buffer = buffer[size:]
-            state = XArmSocket.bytes_to_state(data)
-            self._put(state)
-            rate.precise_sleep()
-            if not_ready:
-                self.ready_event.set()
-                not_ready = False
-        sock.close()
-
-    def _put(self, robot_state):
-        robot_state = {k: np.array(v) for k, v in robot_state.items()}
-        robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
-        robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
-        robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
-        robot_state["ActualTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
-        data = {
-            **robot_state,
-            "timestamp": time.now(),
-        }
-        self.ring_buffer.put(data)
 
 
 def XArmServer(mw, *args, **kwargs):

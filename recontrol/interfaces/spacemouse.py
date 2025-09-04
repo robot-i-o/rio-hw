@@ -56,6 +56,8 @@ class Spacemouse:
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
+        self.run = self.pub
+        self.worker = None
         self.example_request = None
         self.example_data = {
             # 3 translation, 3 rotation, 1 period
@@ -66,7 +68,7 @@ class Spacemouse:
         }
         super().__post_init__()
 
-    def run(self):
+    def pub(self):
         try:
             spnav.spnav_open()
 
@@ -83,8 +85,8 @@ class Spacemouse:
             self.ring_buffer.put(data_frame)
 
             # Main loop
-            self.ready_event.set()
             rate = time.Rate(self.freq)
+            self.pub_ready_event.set()
             while not self.exit_event.is_set():
                 event = spnav.spnav_poll_event()
                 timestamp = time.now()

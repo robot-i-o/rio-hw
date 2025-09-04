@@ -39,18 +39,28 @@ class ThreadClient(th.Thread, Node):
         self.__post_init__()
 
     def __post_init__(self):
-        if self.example_request is not None:
-            self.request_queue = queue.Queue(self.max_queue_size)
-        assert self.example_data is not None
-        self.ring_buffer = RingBuffer(self.max_buffer_size)
-        self.ready_event = th.Event()
+        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.example_data is not None else None
+        self.request_queue = queue.Queue(self.max_queue_size) if self.example_request is not None else None
+        self.pub_ready_event = th.Event() if self.example_data is not None else None
+        self.req_ready_event = th.Event() if self.example_request is not None else None
         self.exit_event = th.Event()
+        self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
+        self.main_thread = super()  # self.run
 
     def start(self):
-        super().start()
-        self.ready_event.wait(self.timeout)
-        assert self.is_alive()
+        if self.worker_thread is not None:
+            self.worker_thread.start()
+        self.main_thread.start()
+        if self.pub_ready_event is not None:
+            self.pub_ready_event.wait(timeout=self.timeout)
+        if self.req_ready_event is not None:
+            self.req_ready_event.wait(timeout=self.timeout)
+        if self.worker_thread is not None:
+            assert self.worker_thread.is_alive()
+        assert self.main_thread.is_alive()
 
     def stop(self):
         self.exit_event.set()
-        self.join(self.timeout)
+        if self.worker_thread is not None:
+            self.worker_thread.join(self.timeout)
+        self.main_thread.join(self.timeout)

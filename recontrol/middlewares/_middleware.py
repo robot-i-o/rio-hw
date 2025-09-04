@@ -1,14 +1,27 @@
-from typing import Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 
 class Node(Protocol):
+    example_data: Any
+    example_request: Any
+    ring_buffer: Any
+    request_queue: Any
+    worker: Callable | None
+    run: Callable
+
     def start(self):
         raise NotImplementedError
 
     def stop(self):
         raise NotImplementedError
 
-    def run(self):
+    def pub(self):
+        """Optional."""
+        raise NotImplementedError
+
+    def req(self):
+        """Optional."""
         raise NotImplementedError
 
     def __enter__(self):
