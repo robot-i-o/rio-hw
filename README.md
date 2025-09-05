@@ -11,7 +11,7 @@ Recontrol 🎛️ is a real-time control library for cross-embodiment robot mani
 
 # Setup
 
-Tested on: Ubuntu 22.04 LTS *jammy* w/ real-time kernel patch.
+Tested on: Ubuntu 22.04 LTS w/ real-time kernel patch. See [`docs/ubuntu.md`](docs/ubuntu.md) for setup instructions.
 
 ```bash
 # install uv
@@ -23,14 +23,19 @@ source .venv/bin/activate
 uv sync --all-extras
 ```
 
-### Peripherals
-
+### Interfaces
 ```bash
 # SpaceMouse
 sudo ./scripts/setup/spacemouse.sh
 # verify install
 systemctl status spacenavd
 ```
+
+### Robots
+Arms:
+  - [`docs/xarm.md`](docs/xarm.md)
+
+See [`docs/hardware.md`](docs/hardware.md) for hardware and example robot stations.
 
 # Usage
 
@@ -42,11 +47,6 @@ A `Node` dynamically inherits from any given `Middleware` parent, and factory fu
 5. `Node.run()` only publishes data, and `Node.req()` handles requests in a separate worker.
 
 Users only need to implement "pub/req" behavior in nodes. A "pub" loop should call `ring_buffer.put()` to publish data, and a "req" loop should call `request_queue.get()` to handle requests. A `Server` runs "pub/req" ("publish"/"request") and a `Client` resolves "sub/rep" ("subscribe"/"reply") automatically.
-
-### Robot arms
-- [`docs/xarm.md`](docs/xarm.md)
-
-See [`docs/hardware.md`](docs/hardware.md) for hardware and robot station setup.
 
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)
