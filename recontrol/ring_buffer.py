@@ -21,6 +21,8 @@ class RingBuffer(Generic[T]):
 
     def get(self, out=None) -> T:
         with self.read_lock:
+            if len(self.buffer) == 0:
+                return []
             return list(self.buffer)[-1]
 
     def get_last_k(self, k: int, out=None) -> list[T]:
