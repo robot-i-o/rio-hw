@@ -36,7 +36,7 @@ Arms:
   - [`docs/ur.md`](docs/ur.md)
   - [`docs/xarm.md`](docs/xarm.md)
 
-See [`docs/hardware.md`](docs/hardware.md) for hardware and example robot stations.
+See [[Hardware Guide (Google Docs)]](https://docs.google.com/document/d/1_NbHk4z9HABPnaqow-VP-srbQBz42kBXCbvbyiJrW74) for hardware and example robot stations.
 
 # Usage
 
