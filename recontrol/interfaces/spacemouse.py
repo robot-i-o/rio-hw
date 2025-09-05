@@ -151,13 +151,13 @@ class Spacemouse:
         return self.ring_buffer.get_all()
 
     def get_motion_state_transformed(self):
-        state = self.get_state()
+        state = self.ring_buffer.get()
         return state["motion_state_transformed"]
 
     def is_button_pressed(self, button_id):
         """Check if a specific button is pressed"""
         if 0 <= button_id < self.n_buttons:
-            state = self.get_state()
+            state = self.ring_buffer.get()
             button_state = state["button_state"]
             return button_state[button_id]
         return False
