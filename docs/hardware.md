@@ -5,7 +5,7 @@
 
 ### Robots
 Arms:
-- [XArm 6/7/850 and Lite6](https://www.ufactory.us/)
+- [XArm 7/850 and Lite6](https://www.ufactory.us/)
 - [UR5e](https://www.universal-robots.com/products/)
 
 ### Accessories

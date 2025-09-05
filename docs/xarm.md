@@ -1,6 +1,6 @@
 # XArm
 
-Supported: XArm 6/7/850 and Lite6.
+Tested: XArm 7/850 and Lite6.
 
 Reference: [UFactory docs](https://docs.ufactory.cc/).
 
