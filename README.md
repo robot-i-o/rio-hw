@@ -46,6 +46,8 @@ Users only need to implement "pub/req" behavior in nodes. A "pub" loop should ca
 ### Robot arms
 - [`docs/xarm.md`](docs/xarm.md)
 
+See [`docs/hardware.md`](docs/hardware.md) for hardware and robot station setup.
+
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)
 - [`real-stanford/universal_manipulation_interface`](https://github.com/real-stanford/universal_manipulation_interface)
