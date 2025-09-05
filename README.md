@@ -33,6 +33,7 @@ systemctl status spacenavd
 
 ### Robots
 Arms:
+  - [`docs/ur.md`](docs/ur.md)
   - [`docs/xarm.md`](docs/xarm.md)
 
 See [`docs/hardware.md`](docs/hardware.md) for hardware and example robot stations.
