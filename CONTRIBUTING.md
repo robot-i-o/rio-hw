@@ -1,0 +1,14 @@
+# Contributing
+
+1. Fork the repository and develop features on a branch with the following naming scheme: `user/feature-name`. For example: `etaoxing/new-task`.
+
+2. Code formatting and linting with [Ruff](https://docs.astral.sh/ruff/).
+- Option 1: Use `uvx ruff check` and `uvx format --check` to check for code quality issues.
+- Option 2: Use `uvx pre-commit run -a`. To automatically run pre-commit hooks with `git commit`, run `uvx pre-commit install`.
+
+### Style Guide
+- Follow PEP 8 as the baseline for coding style, but prioritize matching the existing style and conventions of the file being modified to maintain consistency.
+- Use [Google-style docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings) (compatible with Napoleon extension for Sphinx docs).
+- Write clear, concise commit messages.
+- Keep pull requests focused on a single feature or bug fix.
+- Aim for consistency in variable and function names.
