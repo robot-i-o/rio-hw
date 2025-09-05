@@ -1,13 +1,30 @@
 import pickle
 from typing import Protocol
 
+try:
+    import cloudpickle
+except ImportError:
+    cloudpickle = None
+
 
 class Serializer(Protocol):
-    def pack(self, data) -> bytes:
+    @staticmethod
+    def pack(data) -> bytes:
         pass
 
-    def unpack(self, b_data: bytes):
+    @staticmethod
+    def unpack(b_data: bytes):
         pass
+
+
+class CloudpickleSerializer:
+    @staticmethod
+    def pack(data) -> bytes:
+        return cloudpickle.dumps(data)
+
+    @staticmethod
+    def unpack(b_data: bytes):
+        return cloudpickle.loads(b_data)
 
 
 class PickleSerializer:
