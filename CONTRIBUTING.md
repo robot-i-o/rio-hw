@@ -12,3 +12,4 @@
 - Write clear, concise commit messages.
 - Keep pull requests focused on a single feature or bug fix.
 - Aim for consistency in variable and function names.
+- Use `TODO(team): COMMENT` to mark general TODOs and `TODO(user): COMMENT` to mark user-specific TODOs.
