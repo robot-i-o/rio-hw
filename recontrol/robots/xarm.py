@@ -109,8 +109,6 @@ class XArm:
         example_robot_state = XArmSocket.bytes_to_state(dummy_data)
         example_robot_state = {k: np.array(v) for k, v in example_robot_state.items()}
 
-        self.run = self.req
-        self.worker = self.pub
         self.example_request = {
             "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
             "target_pose": np.zeros((6,), dtype=np.float32),
@@ -120,6 +118,8 @@ class XArm:
             **example_robot_state,
             "timestamp": time.now(),
         }
+        self.worker = self.pub
+        self.run = self.req
         super().__post_init__()
 
         self.arm = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)

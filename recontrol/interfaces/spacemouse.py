@@ -58,8 +58,6 @@ class Spacemouse:
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
-        self.run = self.pub
-        self.worker = None
         self.example_request = None
         self.example_data = {
             # 3 translation, 3 rotation
@@ -68,6 +66,8 @@ class Spacemouse:
             "button_state": np.zeros((self.n_buttons,), dtype=bool),
             "timestamp": time.now(),
         }
+        self.worker = None
+        self.run = self.pub
         super().__post_init__()
 
     def pub(self):

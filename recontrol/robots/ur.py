@@ -123,8 +123,6 @@ class UR:
             example_robot_state[key] = np.array(getattr(rtde_r, f"get{key}")())
         self.receive_keys = receive_keys
 
-        self.run = self.req
-        self.worker = self.pub
         self.example_request = {
             "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
             "target_pose": np.zeros((6,), dtype=np.float32),
@@ -134,6 +132,8 @@ class UR:
             **example_robot_state,
             "timestamp": time.now(),
         }
+        self.worker = self.pub
+        self.run = self.req
         super().__post_init__()
 
         self.rtde_c = RTDEControlInterface(hostname=self.robot_ip)
