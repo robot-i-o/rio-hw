@@ -1,6 +1,8 @@
 import functools
+import inspect
 import queue
 import threading as th
+from types import MethodType
 
 from ..ring_buffer import RingBuffer
 from ..serializers import PickleSerializer
@@ -10,6 +12,26 @@ try:
     import zerorpc
 except ImportError:
     zerorpc = None
+
+
+def get_fn(cls, fn_name):
+    # get descriptor object instead of the underlying attribute
+    fn_descriptor = inspect.getattr_static(cls, fn_name)
+    if isinstance(fn_descriptor, classmethod) or isinstance(fn_descriptor, staticmethod):
+        fn = fn_descriptor.__func__
+    else:
+        fn = fn_descriptor
+    assert callable(fn)
+    return fn_descriptor, fn
+
+
+def wrap_fn(cls, fn_name, fn_descriptor, fn, fn_wrapper):
+    wrapped = functools.wraps(fn)(fn_wrapper)
+    if isinstance(fn_descriptor, classmethod):
+        wrapped = classmethod(wrapped)
+    elif isinstance(fn_descriptor, staticmethod):
+        wrapped = staticmethod(wrapped)
+    setattr(cls, fn_name, wrapped)
 
 
 class ZeroRpcServer(th.Thread, Node):
@@ -55,22 +77,12 @@ class ZeroRpcServer(th.Thread, Node):
     def __init_subclass__(cls, **kwargs):  # create wrappers to pickle output of api methods
         super().__init_subclass__(**kwargs)
         for fn_name in cls.__api__:
-            attr = getattr(cls, fn_name)
-            if isinstance(attr, classmethod) or isinstance(attr, staticmethod):
-                fn = attr.__func__
-            else:
-                fn = attr
-            assert callable(fn)
+            fn_descriptor, fn = get_fn(cls, fn_name)
 
-            def fn_wrapper(*args, __f=fn, **kwargs):
-                return PickleSerializer.pack(__f(*args, **kwargs))
+            def fn_wrapper(*args, __fn=fn, **kwargs):
+                return PickleSerializer.pack(__fn(*args, **kwargs))
 
-            wrapped = functools.wraps(fn)(fn_wrapper)
-            if isinstance(attr, classmethod):
-                wrapped = classmethod(wrapped)
-            elif isinstance(attr, staticmethod):
-                wrapped = staticmethod(wrapped)
-            setattr(cls, fn_name, wrapped)
+            wrap_fn(cls, fn_name, fn_descriptor, fn, fn_wrapper)
 
     def start(self):
         if self.worker_thread is not None:
@@ -120,10 +132,13 @@ class ZeroRpcClient(Node):
         # create wrappers to unpickle output of api methods
         for fn_name in self.__api__:
 
-            def fn(n):
-                return lambda *args, **kwargs: PickleSerializer.unpack(self.proxy(n, *args, **kwargs))
+            def fn_wrapper(self, *args, __fn_name=fn_name, **kwargs):
+                return PickleSerializer.unpack(self.proxy(__fn_name, *args, **kwargs))
 
-            setattr(self, fn_name, fn(fn_name))
+            fn_wrapper.__name__ = fn_name
+            fn_wrapper.__qualname__ = f"{self.__class__.__name__}.{fn_name}"
+            fn_wrapper = MethodType(fn_wrapper, self)
+            setattr(self, fn_name, fn_wrapper)
 
     def start(self):
         pass
