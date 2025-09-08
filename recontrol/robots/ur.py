@@ -28,8 +28,6 @@ class ArmController(Enum):
 
 
 class ArmRequestType(Enum):
-    GET_STATE = auto()
-    GET_ALL_STATE = auto()
     SCHEDULE_WAYPOINT = auto()
 
 
@@ -124,7 +122,7 @@ class UR:
         self.receive_keys = receive_keys
 
         self.example_request = {
-            "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
+            "type": next(iter(ArmRequestType)).value,
             "target_pose": np.zeros((6,), dtype=np.float32),
             "target_time": time.now(),
         }
@@ -140,18 +138,26 @@ class UR:
         self.rtde_r = rtde_r
 
     def pub(self):
-        rate = time.Rate(self.freq)
-        self.pub_ready_event.set()
-        while not self.exit_event.is_set():
-            robot_state = {}
-            for key in self.receive_keys:
-                robot_state[key] = np.array(getattr(self.rtde_r, "get" + key)())
-            data = {
-                **robot_state,
-                "timestamp": time.now(),
-            }
-            self.ring_buffer.put(data)
-            rate.precise_sleep()
+        try:
+            # Main loop
+            rate = time.Rate(self.freq)
+            self.pub_ready_event.set()
+            while not self.exit_event.is_set():
+                robot_state = {}
+                for key in self.receive_keys:
+                    robot_state[key] = np.array(getattr(self.rtde_r, "get" + key)())
+
+                # Store current state in ring buffer
+                data = {
+                    **robot_state,
+                    "timestamp": time.now(),
+                }
+                self.ring_buffer.put(data)
+                rate.precise_sleep()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            pass
 
     def req(self):
         try:
@@ -181,7 +187,7 @@ class UR:
             last_waypoint_time = curr_t
             pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
 
-            # main loop
+            # Main loop
             dt = 1.0 / self.freq
             rate = time.Rate(self.freq)
             self.req_ready_event.set()
@@ -200,7 +206,7 @@ class UR:
                     self.gain,
                 )
 
-                # fetch request from queue with timeout
+                # Fetch request from queue
                 try:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
@@ -223,8 +229,6 @@ class UR:
                         last_waypoint_time = target_time
                     else:
                         raise RuntimeError
-
-                # print(1 / (time.now() - rate.start_time))  # max actual frequency
                 rate.precise_sleep()
         # except Exception as e:
         #     import traceback

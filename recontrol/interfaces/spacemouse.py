@@ -109,8 +109,6 @@ class Spacemouse:
                     "timestamp": timestamp,
                 }
                 self.ring_buffer.put(data_frame)
-
-                # print(1 / (time.now() - rate.start_time))  # max actual frequency
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass

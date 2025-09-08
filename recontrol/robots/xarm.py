@@ -146,12 +146,15 @@ class XArm:
                     continue
                 data = buffer[:size]
                 buffer = buffer[size:]
+
                 robot_state = XArmSocket.bytes_to_state(data)
                 robot_state = {k: np.array(v) for k, v in robot_state.items()}
                 robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
                 robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
                 robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
                 robot_state["ActualTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
+
+                # Store current state in ring buffer
                 data = {
                     **robot_state,
                     "timestamp": time.now(),
@@ -240,7 +243,7 @@ class XArm:
                 arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
                 # arm.set_position_aa(*pose_command.tolist(), speed=60, wait=False)  # mode=7
 
-                # fetch request from queue with timeout
+                # Fetch request from queue
                 try:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
@@ -263,8 +266,6 @@ class XArm:
                         last_waypoint_time = target_time
                     else:
                         raise RuntimeError
-
-                # print(1 / (time.now() - rate.start_time))  # max actual frequency
                 rate.precise_sleep()
         # except Exception as e:
         #     import traceback
