@@ -1,10 +1,14 @@
 # Contributing
 
-1. Fork the repository and develop features on a branch with the following naming scheme: `user/feature-name`. For example: `etaoxing/new-task`.
+1. Fork the repository and develop features on a branch with the following naming scheme: `user/feature-name`.
 
 2. Code formatting and linting with [Ruff](https://docs.astral.sh/ruff/).
 - Option 1: Use `uvx ruff check` and `uvx format --check` to check for code quality issues.
 - Option 2: Use `uvx pre-commit run -a`. To automatically run pre-commit hooks with `git commit`, run `uvx pre-commit install`.
+
+3. Run tests with `uv run --extra dev unittest-parallel -s recontrol._tests`.
+
+4. Open a pull request on the main repository.
 
 ### Style Guide
 - Follow PEP 8 as the baseline for coding style, but prioritize matching the existing style and conventions of the file being modified to maintain consistency.
