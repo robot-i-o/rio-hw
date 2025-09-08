@@ -110,7 +110,7 @@ class XArm:
         example_robot_state = {k: np.array(v) for k, v in example_robot_state.items()}
 
         self.example_request = {
-            "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
+            "type": next(iter(ArmRequestType)).value,
             "target_pose": np.zeros((6,), dtype=np.float32),
             "target_time": time.now(),
         }
@@ -129,41 +129,42 @@ class XArm:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setblocking(True)
         sock.settimeout(1)
-        sock.connect((self.robot_ip, XArmSocket.PORT))
+        try:
+            sock.connect((self.robot_ip, XArmSocket.PORT))
 
-        buffer = sock.recv(4)
-        while len(buffer) < 4:
-            buffer += sock.recv(4 - len(buffer))
-        size = XArmSocket.bytes_to_u32(buffer[:4])
+            buffer = sock.recv(4)
+            while len(buffer) < 4:
+                buffer += sock.recv(4 - len(buffer))
+            size = XArmSocket.bytes_to_u32(buffer[:4])
 
-        # Main loop
-        not_ready = True
-        rate = time.Rate(XArmSocket.FREQ)
-        while not self.exit_event.is_set():
-            buffer += sock.recv(size - len(buffer))
-            if len(buffer) < size:
-                continue
-            data = buffer[:size]
-            buffer = buffer[size:]
-            state = XArmSocket.bytes_to_state(data)
-            self._put(state)
-            rate.precise_sleep()
-            if not_ready:
-                self.pub_ready_event.set()
-                not_ready = False
-        sock.close()
-
-    def _put(self, robot_state):
-        robot_state = {k: np.array(v) for k, v in robot_state.items()}
-        robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
-        robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
-        robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
-        robot_state["ActualTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
-        data = {
-            **robot_state,
-            "timestamp": time.now(),
-        }
-        self.ring_buffer.put(data)
+            # Main loop
+            not_ready = True
+            rate = time.Rate(XArmSocket.FREQ)
+            while not self.exit_event.is_set():
+                buffer += sock.recv(size - len(buffer))
+                if len(buffer) < size:
+                    continue
+                data = buffer[:size]
+                buffer = buffer[size:]
+                robot_state = XArmSocket.bytes_to_state(data)
+                robot_state = {k: np.array(v) for k, v in robot_state.items()}
+                robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
+                robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
+                robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
+                robot_state["ActualTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
+                data = {
+                    **robot_state,
+                    "timestamp": time.now(),
+                }
+                self.ring_buffer.put(data)
+                rate.precise_sleep()
+                if not_ready:
+                    self.pub_ready_event.set()
+                    not_ready = False
+        except KeyboardInterrupt:
+            pass
+        finally:
+            sock.close()
 
     def req(self):
         try:
