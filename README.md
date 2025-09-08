@@ -24,8 +24,9 @@ uv sync --all-extras
 ```
 
 ### Interfaces
+
+Spacemouse:
 ```bash
-# SpaceMouse
 sudo ./scripts/setup/spacemouse.sh
 # verify install
 systemctl status spacenavd

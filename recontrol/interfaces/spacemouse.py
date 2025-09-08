@@ -1,3 +1,5 @@
+import subprocess
+
 import numpy as np
 
 from .. import time
@@ -7,6 +9,12 @@ try:
     import spnav
 except ImportError:
     spnav = None
+
+
+def check_spacemouse_service():
+    is_active = subprocess.run(["systemctl", "is-active", "spacenavd"], check=False, stdout=subprocess.PIPE).stdout.strip()
+    if is_active != b"active":
+        raise RuntimeError("Spacemouse service is not active. Run `sudo systemctl start spacenavd` to start it.")
 
 
 class Spacemouse:
@@ -72,6 +80,7 @@ class Spacemouse:
 
     def pub(self):
         try:
+            check_spacemouse_service()
             spnav.spnav_open()
 
             # Initialize state
