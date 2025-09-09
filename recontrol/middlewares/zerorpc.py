@@ -37,6 +37,7 @@ def wrap_fn(cls, fn_name, fn_descriptor, fn, fn_wrapper):
 class ZeroRpcServer(th.Thread, Node):
     def __init__(
         self,
+        daemon: bool = True,
         *,
         transport: str = "tcp",
         addr: str = "127.0.0.1:5555",
@@ -47,7 +48,7 @@ class ZeroRpcServer(th.Thread, Node):
         verbose=True,
         **kwargs,
     ):
-        super().__init__()
+        super().__init__(daemon=daemon)
         assert transport in ("tcp", "ipc")
         self.transport = transport
         self.addr = addr
@@ -64,14 +65,14 @@ class ZeroRpcServer(th.Thread, Node):
             server.bind(f"{self.transport}://{self.addr}")
             server.run()
 
-        self.server_thread = th.Thread(target=run_server, daemon=True)
+        self.server_thread = th.Thread(target=run_server, daemon=self.daemon)
 
         self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
         self.request_queue = queue.Queue(self.max_queue_size) if self.has_req else None
         self.pub_ready_event = th.Event() if self.has_pub else None
         self.req_ready_event = th.Event() if self.has_req else None
         self.exit_event = th.Event()
-        self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
+        self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_thread = super()  # self.run
 
     def __init_subclass__(cls, **kwargs):  # create wrappers to pickle output of api methods

@@ -22,6 +22,7 @@ class ThreadServer(Node):
 class ThreadClient(th.Thread, Node):
     def __init__(
         self,
+        daemon: bool = True,
         *,
         freq: int = 100,
         max_queue_size: int = 100,
@@ -30,7 +31,7 @@ class ThreadClient(th.Thread, Node):
         verbose=True,
         **kwargs,
     ):
-        super().__init__()
+        super().__init__(daemon=daemon)
         self.freq = freq
         self.max_queue_size = max_queue_size
         self.max_buffer_size = max_buffer_size
@@ -44,7 +45,7 @@ class ThreadClient(th.Thread, Node):
         self.pub_ready_event = th.Event() if self.has_pub else None
         self.req_ready_event = th.Event() if self.has_req else None
         self.exit_event = th.Event()
-        self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
+        self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_thread = super()  # self.run
 
     def start(self):

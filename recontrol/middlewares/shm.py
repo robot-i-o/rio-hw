@@ -24,6 +24,7 @@ class ShmServer(Node):
 class ShmClient(mp.Process, Node):
     def __init__(
         self,
+        daemon: bool = True,
         shm_addr: str = "127.0.0.1:5555",  # NOTE: use same addr across all node processes
         *,
         freq: int = 100,
@@ -33,7 +34,7 @@ class ShmClient(mp.Process, Node):
         verbose=True,
         **kwargs,
     ):
-        super().__init__()
+        super().__init__(daemon=daemon)
         self.shm_addr = shm_addr
         self.freq = freq
         self.max_queue_size = max_queue_size
@@ -73,7 +74,7 @@ class ShmClient(mp.Process, Node):
         self.pub_ready_event = mp.Event() if self.has_pub else None
         self.req_ready_event = mp.Event() if self.has_req else None
         self.exit_event = mp.Event()
-        self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
+        self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_process = super()  # self.run
 
     def start(self):
