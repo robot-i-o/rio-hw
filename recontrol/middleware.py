@@ -11,7 +11,8 @@ def ServerFactory(mw, _Node, *args, **kwargs):
     MwCls = getattr(middlewares, f"{mw}Server")
     if mw in ("Shm", "Thread"):
         Cls = type(f"{mw}Server", (MwCls,), {})
-        Cls.__api__ = _Node.__api__
+        for attr in ("__api__", "__pub__", "__req__"):
+            setattr(Cls, attr, getattr(_Node, attr))
     else:
         Cls = type(f"{mw}Server", (_Node, MwCls), {})
     return Cls(*args, **kwargs)
@@ -24,7 +25,8 @@ def ClientFactory(mw, _Node, *args, **kwargs):
         Cls = type(f"{mw}Client", (_Node, MwCls), {})
     else:
         Cls = type(f"{mw}Client", (MwCls,), {})
-        Cls.__api__ = _Node.__api__
+        for attr in ("__api__", "__pub__", "__req__"):
+            setattr(Cls, attr, getattr(_Node, attr))
     return Cls(*args, **kwargs)
 
 

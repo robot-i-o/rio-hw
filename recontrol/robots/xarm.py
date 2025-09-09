@@ -42,6 +42,8 @@ class XArm:
         "get_all_state",
         "schedule_waypoint",
     ]
+    __pub__ = True
+    __req__ = True
 
     def __init__(
         self,

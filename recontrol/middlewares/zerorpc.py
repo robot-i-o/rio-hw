@@ -66,10 +66,10 @@ class ZeroRpcServer(th.Thread, Node):
 
         self.server_thread = th.Thread(target=run_server, daemon=True)
 
-        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.example_data is not None else None
-        self.request_queue = queue.Queue(self.max_queue_size) if self.example_request is not None else None
-        self.pub_ready_event = th.Event() if self.example_data is not None else None
-        self.req_ready_event = th.Event() if self.example_request is not None else None
+        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
+        self.request_queue = queue.Queue(self.max_queue_size) if self.has_req else None
+        self.pub_ready_event = th.Event() if self.has_pub else None
+        self.req_ready_event = th.Event() if self.has_req else None
         self.exit_event = th.Event()
         self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
         self.main_thread = super()  # self.run
@@ -85,15 +85,11 @@ class ZeroRpcServer(th.Thread, Node):
             wrap_fn(cls, fn_name, fn_descriptor, fn, fn_wrapper)
 
     def start(self):
-        if self.worker_thread is not None:
-            self.worker_thread.start()
+        self.worker_thread.start() if self.worker_thread is not None else None
         self.main_thread.start()
-        if self.pub_ready_event is not None:
-            self.pub_ready_event.wait(timeout=self.timeout)
-        if self.req_ready_event is not None:
-            self.req_ready_event.wait(timeout=self.timeout)
-        if self.worker_thread is not None:
-            assert self.worker_thread.is_alive()
+        self.pub_ready_event.wait(timeout=self.timeout) if self.pub_ready_event is not None else None
+        self.req_ready_event.wait(timeout=self.timeout) if self.req_ready_event is not None else None
+        assert self.worker_thread.is_alive() if self.worker_thread is not None else True
         assert self.main_thread.is_alive()
 
         self.server_thread.start()
@@ -101,8 +97,7 @@ class ZeroRpcServer(th.Thread, Node):
 
     def stop(self):
         self.exit_event.set()
-        if self.worker_thread is not None:
-            self.worker_thread.join(self.timeout)
+        self.worker_thread.join(self.timeout) if self.worker_thread is not None else None
         self.main_thread.join(self.timeout)
 
         self.server_thread.join(self.timeout)

@@ -24,6 +24,8 @@ class Spacemouse:
         "get_motion_state_transformed",
         "is_button_pressed",
     ]
+    __pub__ = True
+    __req__ = False
 
     def __init__(
         self,

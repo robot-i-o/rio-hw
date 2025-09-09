@@ -4,6 +4,8 @@ from typing import Any, Protocol
 
 class Node(Protocol):
     __api__: list[str]
+    __pub__: bool
+    __req__: bool
     example_data: Any
     example_request: Any
     ring_buffer: Any
@@ -24,6 +26,14 @@ class Node(Protocol):
     def req(self):
         """Optional."""
         raise NotImplementedError
+
+    @property
+    def has_pub(self):
+        return self.__pub__
+
+    @property
+    def has_req(self):
+        return self.__req__
 
     def __enter__(self):
         self.start()

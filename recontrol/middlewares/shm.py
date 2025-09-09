@@ -50,7 +50,8 @@ class ShmClient(mp.Process, Node):
         except ConnectionRefusedError:
             self.smm.start()
 
-        if self.example_data is not None:
+        if self.has_pub:
+            assert self.example_data is not None
             self.ring_buffer = SharedMemoryRingBuffer.create_from_examples(
                 shm_manager=self.smm,
                 examples=self.example_data,
@@ -60,7 +61,8 @@ class ShmClient(mp.Process, Node):
             )
         else:
             self.ring_buffer = None
-        if self.example_request is not None:
+        if self.has_req:
+            assert self.example_request is not None
             self.request_queue = SharedMemoryQueue.create_from_examples(
                 shm_manager=self.smm,
                 examples=self.example_request,
@@ -68,29 +70,25 @@ class ShmClient(mp.Process, Node):
             )
         else:
             self.request_queue = None
-        self.pub_ready_event = mp.Event() if self.example_data is not None else None
-        self.req_ready_event = mp.Event() if self.example_request is not None else None
+        self.pub_ready_event = mp.Event() if self.has_pub else None
+        self.req_ready_event = mp.Event() if self.has_req else None
         self.exit_event = mp.Event()
         self.worker_thread = th.Thread(target=self.worker, daemon=True) if self.worker is not None else None
         self.main_process = super()  # self.run
 
     def start(self):
-        if self.worker_thread is not None:
-            self.worker_thread.start()
+        self.worker_thread.start() if self.worker_thread is not None else None
         self.main_process.start()
-        if self.pub_ready_event is not None:
-            self.pub_ready_event.wait(timeout=self.timeout)
-        if self.req_ready_event is not None:
-            self.req_ready_event.wait(timeout=self.timeout)
-        if self.worker_thread is not None:
-            assert self.worker_thread.is_alive()
+        self.pub_ready_event.wait(timeout=self.timeout) if self.pub_ready_event is not None else None
+        self.req_ready_event.wait(timeout=self.timeout) if self.req_ready_event is not None else None
+        assert self.worker_thread.is_alive() if self.worker_thread is not None else True
         assert self.main_process.is_alive()
 
     def stop(self):
         self.exit_event.set()
-        if self.worker_thread is not None:
-            self.worker_thread.join(self.timeout)
+        self.worker_thread.join(self.timeout) if self.worker_thread is not None else None
         self.main_process.join(self.timeout)
+
         try:
             self.smm.shutdown()
         except AttributeError:
