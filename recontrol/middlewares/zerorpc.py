@@ -25,13 +25,26 @@ def get_fn(cls, fn_name):
     return fn_descriptor, fn
 
 
-def wrap_fn(cls, fn_name, fn_descriptor, fn, fn_wrapper):
+def wrap_fn_pack(cls, fn_name, fn_descriptor, fn):
+    def fn_wrapper(*args, __fn=fn, **kwargs):
+        return PickleSerializer.pack(__fn(*args, **kwargs))
+
     wrapped = functools.wraps(fn)(fn_wrapper)
     if isinstance(fn_descriptor, classmethod):
         wrapped = classmethod(wrapped)
     elif isinstance(fn_descriptor, staticmethod):
         wrapped = staticmethod(wrapped)
     setattr(cls, fn_name, wrapped)
+
+
+def wrap_fn_unpack(self, fn_name):
+    def fn_wrapper(self, *args, __fn_name=fn_name, **kwargs):
+        return PickleSerializer.unpack(self.proxy(__fn_name, *args, **kwargs))
+
+    fn_wrapper.__name__ = fn_name
+    fn_wrapper.__qualname__ = f"{self.__class__.__name__}.{fn_name}"
+    fn_wrapper = MethodType(fn_wrapper, self)
+    setattr(self, fn_name, fn_wrapper)
 
 
 class ZeroRpcServer(th.Thread, Node):
@@ -75,15 +88,12 @@ class ZeroRpcServer(th.Thread, Node):
         self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_thread = super()  # self.run
 
-    def __init_subclass__(cls, **kwargs):  # create wrappers to pickle output of api methods
+    def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        # create wrappers to pickle output of api methods
         for fn_name in cls.__api__:
             fn_descriptor, fn = get_fn(cls, fn_name)
-
-            def fn_wrapper(*args, __fn=fn, **kwargs):
-                return PickleSerializer.pack(__fn(*args, **kwargs))
-
-            wrap_fn(cls, fn_name, fn_descriptor, fn, fn_wrapper)
+            wrap_fn_pack(cls, fn_name, fn_descriptor, fn)
 
     def start(self):
         self.worker_thread.start() if self.worker_thread is not None else None
@@ -123,21 +133,13 @@ class ZeroRpcClient(Node):
 
     def __post_init__(self):
         self.proxy = zerorpc.Client(heartbeat=self.timeout)
-        self.proxy.connect(f"{self.transport}://{self.addr}")
 
         # create wrappers to unpickle output of api methods
         for fn_name in self.__api__:
-
-            def fn_wrapper(self, *args, __fn_name=fn_name, **kwargs):
-                return PickleSerializer.unpack(self.proxy(__fn_name, *args, **kwargs))
-
-            fn_wrapper.__name__ = fn_name
-            fn_wrapper.__qualname__ = f"{self.__class__.__name__}.{fn_name}"
-            fn_wrapper = MethodType(fn_wrapper, self)
-            setattr(self, fn_name, fn_wrapper)
+            wrap_fn_unpack(self, fn_name)
 
     def start(self):
-        pass
+        self.proxy.connect(f"{self.transport}://{self.addr}")
 
     def stop(self):
         self.proxy.close()

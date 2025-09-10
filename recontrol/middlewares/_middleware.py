@@ -6,6 +6,7 @@ class Node(Protocol):
     __api__: list[str]
     __pub__: bool
     __req__: bool
+
     example_data: Any
     example_request: Any
     ring_buffer: Any
