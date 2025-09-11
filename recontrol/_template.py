@@ -1,6 +1,8 @@
 import queue
 from enum import Enum, auto
 
+import numpy as np
+
 from . import time
 from .request import Request
 
@@ -15,14 +17,18 @@ class Template:
         "get_all_state",
         "method",
     ]
+    __pub__ = True
+    __req__ = True
 
     def __init__(
         self,
+        dtype=np.float64,
         *,
         freq: int = 100,
         max_buffer_size: int = 30,
         **kwargs,
     ):
+        self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
@@ -42,8 +48,10 @@ class Template:
             rate = time.Rate(self.freq)
             self.pub_ready_event.set()
             while not self.exit_event.is_set():
+                state = {}
                 # Store current state in ring buffer
                 data = {
+                    **state,
                     "timestamp": time.now(),
                 }
                 self.ring_buffer.put(data)
@@ -68,7 +76,7 @@ class Template:
                     req = None
                 if req:
                     if req.type == TemplateRequestType.METHOD.value:
-                        pass
+                        raise NotImplementedError
                     else:
                         raise RuntimeError
                 rate.precise_sleep()
