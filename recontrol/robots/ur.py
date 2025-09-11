@@ -55,6 +55,7 @@ class UR:
         joints_init=None,
         joints_init_speed=1.05,
         soft_real_time=False,
+        dtype=np.float64,
         *,
         freq: int = 125,
         max_buffer_size: int | None = None,
@@ -72,6 +73,7 @@ class UR:
             joint_init:
             joint_init_speed: rad/s
             soft_real_time: enables round-robin scheduling and real-time priority
+            dtype:
         """
         assert 0 < freq <= 500
         assert 0.03 <= lookahead_time <= 0.2
@@ -104,6 +106,8 @@ class UR:
         self.payload_cog = payload_cog
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
+        self.soft_real_time = soft_real_time
+        self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
@@ -120,12 +124,12 @@ class UR:
         ]
         example_robot_state = {}
         for key in receive_keys:
-            example_robot_state[key] = np.array(getattr(rtde_r, f"get{key}")())
+            example_robot_state[key] = np.array(getattr(rtde_r, f"get{key}")(), dtype=self.dtype)
         self.receive_keys = receive_keys
 
         self.example_request = {
             "type": next(iter(ArmRequestType)).value,
-            "target_pose": np.zeros((6,), dtype=np.float32),
+            "target_pose": np.zeros((6,), dtype=self.dtype),
             "target_time": time.now(),
         }
         self.example_data = {
@@ -147,7 +151,7 @@ class UR:
             while not self.exit_event.is_set():
                 robot_state = {}
                 for key in self.receive_keys:
-                    robot_state[key] = np.array(getattr(self.rtde_r, "get" + key)())
+                    robot_state[key] = np.array(getattr(self.rtde_r, "get" + key)(), dtype=self.dtype)
 
                 # Store current state in ring buffer
                 data = {
@@ -217,7 +221,7 @@ class UR:
                     req = None
                 if req:
                     if req.type == ArmRequestType.SCHEDULE_WAYPOINT.value:
-                        target_pose = np.array(req.params.get("target_pose"))
+                        target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
                         pose_interp = pose_interp.schedule_waypoint(
@@ -232,15 +236,11 @@ class UR:
                     else:
                         raise RuntimeError
                 rate.precise_sleep()
-        # except Exception as e:
-        #     import traceback
-        #     print(e, traceback.format_exc())
         except KeyboardInterrupt:
             pass
         finally:
             # decelerate
             rtde_c.servoStop()
-
             # terminate
             rtde_c.stopScript()
             rtde_c.disconnect()
@@ -256,8 +256,8 @@ class UR:
         return self.ring_buffer.get_all()
 
     def schedule_waypoint(self, pose, target_time):
+        pose = np.array(pose, dtype=self.dtype)
         assert target_time > time.now()
-        pose = np.array(pose)
         assert pose.shape == (6,)
         req = {
             "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
