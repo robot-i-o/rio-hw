@@ -1,0 +1,235 @@
+import queue
+from enum import Enum, auto
+
+import numpy as np
+
+from .. import time
+from ..middleware import ClientFactory, ServerFactory
+from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
+from ..request import Request
+
+try:
+    from xarm.wrapper import XArmAPI
+except ImportError:
+    XArmAPI = None
+
+
+class GripperModel(Enum):
+    LITE6 = "lite6"
+    G1 = "g1"
+    G2 = "g2"
+
+
+class GripperController(Enum):
+    JOINT_POS = "joint_pos"
+
+
+class GripperRequestType(Enum):
+    SCHEDULE_WAYPOINT = auto()
+
+
+class XArmGripper:
+    __api__ = [
+        "get_state",
+        "get_all_state",
+        "schedule_waypoint",
+    ]
+    __pub__ = True
+    __req__ = True
+
+    def __init__(
+        self,
+        robot_ip: str = "192.168.1.111",
+        robot_model: str = "g1",
+        robot_controller: str = "joint_pos",
+        move_max_speed: float = 1.0,
+        home_to_open: bool = True,
+        dtype=np.float64,
+        *,
+        freq: int = 30,
+        max_buffer_size: int | None = None,
+        max_queue_size: int = 1024,
+        **kwargs,
+    ):
+        if max_buffer_size is None:
+            max_buffer_size = int(freq * 10)
+        self.robot_ip = robot_ip
+        self.robot_model = GripperModel(robot_model)
+        self.robot_controller = GripperController(robot_controller)
+        self.home_to_open = home_to_open
+        self.move_max_speed = move_max_speed
+        self.dtype = dtype
+        super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
+
+    def __post_init__(self):
+        example_robot_state = {
+            "gripper_position": 0.0,
+        }
+
+        self.example_request = {
+            "type": next(iter(GripperRequestType)).value,
+            "target_pose": np.zeros((1,), dtype=self.dtype),
+            "target_time": time.now(),
+        }
+        self.example_data = {
+            **example_robot_state,
+            "timestamp": time.now(),
+        }
+        self.worker = None
+        self.run = self.pubreq
+        super().__post_init__()
+
+        self.gripper = XArmGripperInterface(self.robot_ip, self.robot_model, self.home_to_open)
+
+    def pubreq(self):
+        try:
+            gripper = self.gripper
+            gripper.start()
+
+            curr_pos = self.gripper.state()["gripper_position"]
+            # pose interpolation
+            curr_t = time.now()
+            last_waypoint_time = curr_t
+            pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+
+            # Main loop
+            dt = 1.0 / self.freq
+            rate = time.Rate(self.freq)
+            self.req_ready_event.set()
+            not_pub_ready = True
+            while not self.exit_event.is_set():
+                t_now = time.now()
+                # send command to robot
+                target_pos = pose_interp(t_now)[0]
+
+                gripper.move(target_pos)
+                robot_state = gripper.state()
+
+                # Store current state in ring buffer
+                data = {
+                    **robot_state,
+                    "timestamp": time.now(),
+                }
+                self.ring_buffer.put(data)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
+
+                # Fetch request from queue
+                try:
+                    req = self.request_queue.get()
+                    if isinstance(req, dict):
+                        req = Request(req.pop("type"), req)
+                except queue.Empty:
+                    req = None
+                if req:
+                    if req.type == GripperRequestType.SCHEDULE_WAYPOINT.value:
+                        target_pos = np.array(req.params["target_pose"], dtype=self.dtype)[0]
+                        target_time = float(req.params["target_time"])
+                        curr_time = t_now + dt
+                        pose_interp = pose_interp.schedule_waypoint(
+                            pose=[target_pos, 0, 0, 0, 0, 0],
+                            time=target_time,
+                            max_pos_speed=self.move_max_speed,
+                            max_rot_speed=self.move_max_speed,
+                            curr_time=curr_time,
+                            last_waypoint_time=last_waypoint_time,
+                        )
+                        last_waypoint_time = target_time
+                    else:
+                        raise RuntimeError
+                rate.precise_sleep()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            gripper.stop()
+
+    def get_state(self, k=None, out=None):
+        if k is None:
+            return self.ring_buffer.get(out=out)
+        else:
+            return self.ring_buffer.get_last_k(k=k, out=out)
+
+    def get_all_state(self):
+        return self.ring_buffer.get_all()
+
+    def schedule_waypoint(self, pose, target_time):
+        pose = np.array(pose, dtype=self.dtype)
+        assert pose.shape == (1,)
+        assert target_time > time.now()
+        req = {
+            "type": GripperRequestType.SCHEDULE_WAYPOINT.value,
+            "target_pose": pose,
+            "target_time": target_time,
+        }
+        self.request_queue.put(req)
+
+
+class XArmGripperInterface:
+    def __init__(self, robot_ip, robot_model, home_to_open: bool = True):
+        self.robot_ip = robot_ip
+        self.robot_model = robot_model
+        self.home_to_open = home_to_open
+
+    def start(self):
+        self.gripper = XArmAPI(self.robot_ip, is_radian=True, do_not_open=True)
+        self.gripper.connect()
+        self.gripper.set_gripper_mode(0)
+        self.gripper.set_gripper_enable(True)
+        # self.gripper.set_collision_tool_model(1)
+
+        self.move(1.0, wait=True)  # open
+
+    def stop(self):
+        if self.robot_model == GripperModel.LITE6:
+            self.gripper.stop_lite6_gripper()
+        self.gripper.disconnect()
+
+    def state(self):
+        # get state from robot
+        if self.robot_model == GripperModel.LITE6:
+            pos = self._lite6_gripper_pos
+        elif self.robot_model == GripperModel.G1:
+            _, pos = self.gripper.get_gripper_position()
+            # [-10, 850] -> [0, 1]
+            pos = (pos + 10) / 860
+            robot_state = {
+                "gripper_position": pos,
+            }
+        elif self.robot_model == GripperModel.G2:
+            _, pos = self.gripper.get_gripper_g2_position()
+            # [0, 84] -> [0, 1]
+            pos = pos / 84
+            robot_state = {
+                "gripper_position": pos,
+            }
+        else:
+            raise RuntimeError(self.robot_model)
+        return robot_state
+
+    def move(self, target_pos, wait=False):
+        if self.robot_model == GripperModel.LITE6:
+            if target_pos > 0.5:
+                self.gripper.open_lite6_gripper(sync=wait)
+                self._lite6_gripper_pos = 1.0
+            else:
+                self.gripper.close_lite6_gripper(sync=wait)
+                self._lite6_gripper_pos = 0.0
+        elif self.robot_model == GripperModel.G1:
+            # [0, 1] -> [-10, 850]
+            pos = target_pos * 860 - 10
+            self.gripper.set_gripper_position(pos, speed=5000, wait=wait)  # speed: [0, 5000]
+        elif self.robot_model == GripperModel.G2:
+            # [0, 1] -> [0, 84]
+            pos = target_pos * 84
+            self.gripper.set_gripper_g2_position(pos, speed=225, force=50, wait=wait)  # speed: [15, 225], force: [1, 100]
+        else:
+            raise RuntimeError(self.robot_model)
+
+
+def XArmGripperServer(mw, *args, **kwargs):
+    return ServerFactory(mw, XArmGripper, *args, **kwargs)
+
+
+def XArmGripperClient(mw, *args, **kwargs):
+    return ClientFactory(mw, XArmGripper, *args, **kwargs)
