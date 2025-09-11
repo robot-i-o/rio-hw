@@ -55,8 +55,8 @@ class ZeroRpcServer(th.Thread, Node):
         transport: str = "tcp",
         addr: str = "127.0.0.1:5555",
         freq: int = 100,
-        max_queue_size: int = 100,
         max_buffer_size: int = 30,
+        max_queue_size: int = 100,
         timeout: float = 5.0,  # should be same as client
         verbose=True,
         **kwargs,
@@ -66,8 +66,8 @@ class ZeroRpcServer(th.Thread, Node):
         self.transport = transport
         self.addr = addr
         self.freq = freq
-        self.max_queue_size = max_queue_size
         self.max_buffer_size = max_buffer_size
+        self.max_queue_size = max_queue_size
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()

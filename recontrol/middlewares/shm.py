@@ -28,8 +28,8 @@ class ShmClient(mp.Process, Node):
         shm_addr: str = "127.0.0.1:5555",  # NOTE: use same addr across all node processes
         *,
         freq: int = 100,
-        max_queue_size: int = 100,
         max_buffer_size: int = 30,
+        max_queue_size: int = 100,
         timeout: float = 5.0,
         verbose=True,
         **kwargs,
@@ -37,8 +37,8 @@ class ShmClient(mp.Process, Node):
         super().__init__(daemon=daemon)
         self.shm_addr = shm_addr
         self.freq = freq
-        self.max_queue_size = max_queue_size
         self.max_buffer_size = max_buffer_size
+        self.max_queue_size = max_queue_size
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
