@@ -7,7 +7,7 @@ from ..middleware import ClientFactory, ServerFactory
 
 try:
     import spnav
-except ImportError:
+except (ImportError, OSError):
     spnav = None
 
 
@@ -91,12 +91,12 @@ class Spacemouse:
             button_state = np.zeros((self.n_buttons,), dtype=bool)
             timestamp = time.now()
             # Store initial state in ring buffer
-            data_frame = {
+            data = {
                 "motion_state_transformed": motion_state_transformed,
                 "button_state": button_state,
                 "timestamp": timestamp,
             }
-            self.ring_buffer.put(data_frame)
+            self.ring_buffer.put(data)
 
             # Main loop
             rate = time.Rate(self.freq)
@@ -114,12 +114,12 @@ class Spacemouse:
                 motion_state_transformed = self._get_motion_state_transformed(motion_event)
 
                 # Store current state in ring buffer
-                data_frame = {
+                data = {
                     "motion_state_transformed": motion_state_transformed,
                     "button_state": np.copy(button_state),
                     "timestamp": timestamp,
                 }
-                self.ring_buffer.put(data_frame)
+                self.ring_buffer.put(data)
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass
