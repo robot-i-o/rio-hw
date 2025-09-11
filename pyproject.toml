@@ -17,7 +17,7 @@ dynamic = ["version", "readme"]
 requires-python = ">=3.10"
 dependencies = [
     "cloudpickle",
-    "numpy",
+    "numpy>=2.0",
     "scipy",
     "atomics",  # shared memory
     "zerorpc",  # middleware (optional)
