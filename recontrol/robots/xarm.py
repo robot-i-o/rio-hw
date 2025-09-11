@@ -50,7 +50,6 @@ class XArm:
         robot_ip: str = "192.168.1.111",
         robot_model: str = "xarm7",
         robot_controller: str = "task_pos",
-        robot_gripper: bool = True,
         max_pos_speed=0.25,  # 25% of max speed, 1 m/s
         max_rot_speed=0.785,  # 25% of max speed, 180 deg/s
         tcp_offset_pose=None,
@@ -59,6 +58,7 @@ class XArm:
         joints_init=None,
         joints_init_speed=1.05,
         soft_real_time=False,
+        dtype=np.float64,
         *,
         freq: int = 250,
         max_buffer_size: int | None = None,
@@ -74,6 +74,7 @@ class XArm:
             joint_init:
             joint_init_speed:
             soft_real_time: enables round-robin scheduling and real-time priority
+            dtype:
         """
         assert 0 < freq <= 250
         assert 0 < max_pos_speed
@@ -81,21 +82,20 @@ class XArm:
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
         if tcp_offset_pose is not None:
-            tcp_offset_pose = np.array(tcp_offset_pose)
+            tcp_offset_pose = np.array(tcp_offset_pose, dtype=dtype)
             assert tcp_offset_pose.shape == (6,)
         if payload_mass is not None:
             assert 0 <= payload_mass <= 5
         if payload_cog is not None:
-            payload_cog = np.array(payload_cog)
+            payload_cog = np.array(payload_cog, dtype=dtype)
             assert payload_cog.shape == (3,)
             assert payload_mass is not None
         if joints_init is not None:
-            joints_init = np.array(joints_init)
+            joints_init = np.array(joints_init, dtype=dtype)
             assert joints_init.shape == (6,)
         self.robot_ip = robot_ip
         self.robot_model = ArmModel(robot_model)
         self.robot_controller = ArmController(robot_controller)
-        self.robot_gripper = robot_gripper
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
         self.tcp_offset_pose = tcp_offset_pose
@@ -104,12 +104,13 @@ class XArm:
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
         self.soft_real_time = soft_real_time
+        self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
         dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
         example_robot_state = XArmSocket.bytes_to_state(dummy_data)
-        example_robot_state = {k: np.array(v) for k, v in example_robot_state.items()}
+        example_robot_state = {k: np.array(v, dtype=self.dtype) for k, v in example_robot_state.items()}
 
         self.example_request = {
             "type": next(iter(ArmRequestType)).value,
@@ -140,8 +141,8 @@ class XArm:
             size = XArmSocket.bytes_to_u32(buffer[:4])
 
             # Main loop
-            not_ready = True
             rate = time.Rate(XArmSocket.FREQ)
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 buffer += sock.recv(size - len(buffer))
                 if len(buffer) < size:
@@ -150,7 +151,7 @@ class XArm:
                 buffer = buffer[size:]
 
                 robot_state = XArmSocket.bytes_to_state(data)
-                robot_state = {k: np.array(v) for k, v in robot_state.items()}
+                robot_state = {k: np.array(v, dtype=self.dtype) for k, v in robot_state.items()}
                 robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
                 robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
                 robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
@@ -162,10 +163,10 @@ class XArm:
                     "timestamp": time.now(),
                 }
                 self.ring_buffer.put(data)
-                rate.precise_sleep()
-                if not_ready:
+                if not_pub_ready:
                     self.pub_ready_event.set()
-                    not_ready = False
+                    not_pub_ready = False
+                rate.precise_sleep()
         except KeyboardInterrupt:
             pass
         finally:
@@ -191,20 +192,20 @@ class XArm:
             arm.clean_warn()
             arm.motion_enable(True)
 
-            if self.robot_gripper:
-                # arm.set_gripper_enable(True)
-                # arm.set_collision_tool_model(1)
-                arm.set_gripper_speed(5000)  # [0, 5000]
+            if arm.has_err_warn:
+                _, err_warn = arm.get_err_warn_code()
+                if err_warn[0] != 0:
+                    raise RuntimeError("Check whether e-stop button is pressed.")
 
             arm.set_mode(0)
             code = arm.set_state(0)
-            assert code == 0, "Check whether e-stop button is pressed."
             # arm.reset(wait=True)
             # arm.move_gohome(wait=True)
 
             # set parameters
             if self.tcp_offset_pose is not None:
-                arm.set_tcp_offset(self.tcp_offset_pose)
+                code = arm.set_tcp_offset(self.tcp_offset_pose)
+                assert code == 0
             if self.payload_mass is not None:
                 if self.payload_cog is not None:
                     code = arm.set_tcp_load(self.payload_mass, self.payload_cog)
@@ -226,7 +227,7 @@ class XArm:
 
             code, curr_pose = arm.get_position_aa()
             assert code == 0
-            curr_pose = np.array(curr_pose)
+            curr_pose = np.array(curr_pose, dtype=self.dtype)
             curr_pose[:3] *= 0.001  # convert mm to m
             # pose interpolation
             curr_t = time.now()
@@ -242,8 +243,10 @@ class XArm:
                 # send command to robot
                 pose_command = pose_interp(t_now)
                 pose_command[:3] *= 1000.0  # convert m to mm
-                arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
-                # arm.set_position_aa(*pose_command.tolist(), speed=60, wait=False)  # mode=7
+                code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
+                # code = arm.set_position_aa(*pose_command.tolist(), speed=60)  # mode=7
+                # if not (code == 0 and arm.error_code == 0 and arm.connected):
+                #     raise RuntimeError
 
                 # Fetch request from queue
                 try:
@@ -254,7 +257,7 @@ class XArm:
                     req = None
                 if req:
                     if req.type == ArmRequestType.SCHEDULE_WAYPOINT.value:
-                        target_pose = np.array(req.params.get("target_pose"))
+                        target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
                         pose_interp = pose_interp.schedule_waypoint(
@@ -269,9 +272,6 @@ class XArm:
                     else:
                         raise RuntimeError
                 rate.precise_sleep()
-        # except Exception as e:
-        #     import traceback
-        #     print(e, traceback.format_exc())
         except KeyboardInterrupt:
             pass
         finally:
@@ -279,9 +279,6 @@ class XArm:
             _, angles = arm.get_servo_angle()
             zero_angle_delta = [0.0] * len(angles)
             arm.set_servo_angle(angle=zero_angle_delta, wait=True, relative=True, timeout=0.5)
-
-            if self.robot_gripper and self.robot_model == ArmModel.LITE6:
-                arm.stop_lite6_gripper()
 
             # terminate
             arm.set_mode(0)
@@ -300,9 +297,9 @@ class XArm:
         return self.ring_buffer.get_all()
 
     def schedule_waypoint(self, pose, target_time):
-        assert target_time > time.now()
-        pose = np.array(pose)
+        pose = np.array(pose, dtype=self.dtype)
         assert pose.shape == (6,)
+        assert target_time > time.now()
         req = {
             "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
             "target_pose": pose,
@@ -315,14 +312,14 @@ class XArmSocket:
     # https://docs.supportarticle.ufactory.cc/support_articles/developer/firmware/how-to-get-the-real-time-data-via-tcp-30000-port.html
     # Frequency: 250HZ (200HZ with FT sensor)
     P30000 = {
-        "TargetQ": [33, 60],  # rad
-        "TargetQd": [61, 88],  # rad/s
-        "TargetTCPPose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
-        "TargetTCPSpeed": [449, 472],  # mm/s & rad/s
-        "ActualQ": [117, 144],  # rad
-        "ActualQd": [449, 472],  # rad/s
         "ActualTCPPose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
         "ActualTCPSpeed": [497, 520],  # mm/s & rad/s
+        "ActualQ": [117, 144],  # rad
+        "ActualQd": [449, 472],  # rad/s
+        "TargetTCPPose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
+        "TargetTCPSpeed": [449, 472],  # mm/s & rad/s
+        "TargetQ": [33, 60],  # rad
+        "TargetQd": [61, 88],  # rad/s
     }
     PORT = 30000
     FREQ = 250
