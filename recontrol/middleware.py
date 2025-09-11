@@ -64,6 +64,11 @@ class ServerManager(Node):
             stop_event.wait()
         except KeyboardInterrupt:
             pass
+        except Exception as e:
+            import traceback  # noqa
+
+            print(e, traceback.format_exc())
+            exit()
         finally:
             if ready:
                 if server is not None:
