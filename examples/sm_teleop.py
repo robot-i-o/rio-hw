@@ -1,38 +1,31 @@
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 
 import scipy.spatial.transform as st
 import tyro
 
+from .nodes import StationCfg, make_node
+
 
 def main(args):
-    if args.teleop == "Spacemouse":
-        from recontrol.interfaces.spacemouse import SpacemouseClient, SpacemouseServer
-
-        teleop_kwargs = {}
-        teleop_server = lambda: SpacemouseServer(args.mw, **teleop_kwargs)
-        teleop_client = SpacemouseClient(args.mw, **teleop_kwargs)
-    else:
-        raise ValueError
-
-    if args.arm == "XArm":
-        from recontrol.robots.xarm import XArmClient, XArmServer
-
-        arm_kwargs = asdict(args.arm_cfg)
-        arm_server = lambda: XArmServer(args.mw, **arm_kwargs)
-        arm_client = XArmClient(args.mw, **arm_kwargs)
-    else:
-        arm_server = lambda: None
-        arm_client = None
+    teleop_server, teleop_client = make_node(args.mw, "interfaces", args.teleop, asdict(args.teleop_cfg))
+    arm_server, arm_client = make_node(args.mw, "robots", args.arm, asdict(args.arm_cfg))
+    gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
 
     from recontrol import time
     from recontrol.middleware import ServerManager
 
-    with ServerManager(args.mw, [teleop_server, arm_server]):
-        with teleop_client as teleop, arm_client if arm_client else nullcontext() as arm:
+    with ServerManager(args.mw, [teleop_server, arm_server, gripper_server]):
+        with (
+            teleop_client() as teleop,
+            arm_client() if arm_client else nullcontext() as arm,
+            gripper_client() if gripper_client else nullcontext() as gripper,
+        ):
             freq = args.freq
             sm = teleop
             target_pose = arm.get_state()["TargetTCPPose"] if arm else None
+            teleop_mode = 0
+            last_mode_change = time.now()
 
             input("Press Enter to start")
             try:
@@ -48,53 +41,64 @@ def main(args):
 
                     time.precise_wait(t_sample)
                     # get teleop command
-                    sm_state = sm.get_motion_state_transformed()
-                    print(sm_state)
+                    sm_motion = sm.get_motion_state_transformed()
+                    sm_b0 = sm.is_button_pressed(0)
+                    sm_b1 = sm.is_button_pressed(1)
+                    if sm_b0 and sm_b1:
+                        t_mode = time.now()
+                        if t_mode - last_mode_change > 1.0:  # 1 second delay between mode changes
+                            teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
+                            last_mode_change = t_mode
+
                     if arm:
                         max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
-                        dpos = sm_state[:3] * (max_pos_speed / freq)
-                        drot_xyz = sm_state[3:] * (max_rot_speed / freq)
+                        dpos = sm_motion[:3] * (max_pos_speed / freq)
+                        drot_xyz = sm_motion[3:] * (max_rot_speed / freq)
 
-                        if not sm.is_button_pressed(0):
+                        if teleop_mode == 0:
+                            # 2D translation mode
+                            drot_xyz[:] = 0
+                            dpos[2] = 0
+                        elif teleop_mode == 1:
                             # translation mode
                             drot_xyz[:] = 0
-                        else:
+                        elif teleop_mode == 2:
+                            # rotation mode
                             dpos[:] = 0
-                        if not sm.is_button_pressed(1):
-                            # 2D translation mode
-                            dpos[2] = 0
+                        else:
+                            raise RuntimeError(teleop_mode)
 
                         drot = st.Rotation.from_euler("xyz", drot_xyz)
                         target_pose[:3] += dpos
                         target_pose[3:] = (drot * st.Rotation.from_rotvec(target_pose[3:])).as_rotvec()
                         arm.schedule_waypoint(target_pose.tolist(), t_command_target)
+
+                    if gripper:
+                        if sm_b0:
+                            gripper.schedule_waypoint([0.0], t_command_target)  # close
+                        elif sm_b1:
+                            gripper.schedule_waypoint([1.0], t_command_target)  # open
+
+                    # logging
+                    if it % freq == 0:
+                        print(
+                            f"t: {t_cycle_end - t_start:.3f}s",
+                            "|",
+                            f"teleop_mode: {teleop_mode}",
+                            "|",
+                            f"sm_motion: {sm_motion}",
+                        )
+
                     time.precise_wait(t_cycle_end)
                     it += 1
             except KeyboardInterrupt:
                 pass
 
 
-class Cfg:
-    @dataclass
-    class TeleopCfg:
-        addr: str = "127.0.0.1:5557"
-
-    @dataclass
-    class ArmCfg:
-        robot_ip: str = "192.168.1.228"
-        addr: str = "127.0.0.1:5559"
-        max_pos_speed = 0.25
-        max_rot_speed = 0.6
-
-
 @dataclass
-class Args:
-    freq: int = 30
+class Args(StationCfg):
     mw: str = "Shm"  # middleware
-    teleop: str = "Spacemouse"
-    teleop_cfg: Cfg.TeleopCfg = field(default_factory=lambda: Cfg.TeleopCfg())
-    arm: str | None = None
-    arm_cfg: Cfg.ArmCfg = field(default_factory=lambda: Cfg.ArmCfg())
+    freq: int = 30
 
 
 if __name__ == "__main__":
