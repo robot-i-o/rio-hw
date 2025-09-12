@@ -44,11 +44,11 @@ def main(args):
     if getattr(args, "arm2", None):
         arm2_server, arm2_client = make_node(args.mw, "robots", args.arm2, asdict(args.arm2_cfg))
     else:
-        arm2_server, arm2_client = None, None
+        arm2_server, arm2_client = lambda: None, None
     if getattr(args, "gripper2", None):
         gripper2_server, gripper2_client = make_node(args.mw, "robots", args.gripper2, asdict(args.gripper2_cfg))
     else:
-        gripper2_server, gripper2_client = None, None
+        gripper2_server, gripper2_client = lambda: None, None
 
     from recontrol import time
     from recontrol.middleware import ServerManager
