@@ -191,16 +191,12 @@ class XArm:
             arm.clean_error()
             arm.clean_warn()
             arm.motion_enable(True)
-
             if arm.has_err_warn:
                 _, err_warn = arm.get_err_warn_code()
                 if err_warn[0] != 0:
                     raise RuntimeError("Check whether e-stop button is pressed.")
-
             arm.set_mode(0)
-            code = arm.set_state(0)
-            # arm.reset(wait=True)
-            # arm.move_gohome(wait=True)
+            arm.set_state(0)
 
             # set parameters
             if self.tcp_offset_pose is not None:
@@ -217,6 +213,8 @@ class XArm:
             if self.joints_init is not None:
                 code = arm.set_servo_angle(angle=self.joints_init, speed=self.joints_init_speed, mvacc=1.4, wait=True)
                 assert code == 0
+            # arm.reset(wait=True)
+            # arm.move_gohome(wait=True)
 
             # 1: servo motion mode, 7: cartesian online trajectory planning mode
             arm.set_mode(1)

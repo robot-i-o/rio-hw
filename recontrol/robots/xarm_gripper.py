@@ -42,7 +42,7 @@ class XArmGripper:
         robot_ip: str = "192.168.1.111",
         robot_model: str = "g1",
         robot_controller: str = "joint_pos",
-        move_max_speed: float = 1.0,
+        move_max_speed: float = 3.0,
         home_to_open: bool = True,
         dtype=np.float64,
         *,
@@ -172,11 +172,28 @@ class XArmGripperInterface:
         self.home_to_open = home_to_open
 
     def start(self):
-        self.gripper = XArmAPI(self.robot_ip, is_radian=True, do_not_open=True)
-        self.gripper.connect()
-        self.gripper.set_gripper_mode(0)
-        self.gripper.set_gripper_enable(True)
-        # self.gripper.set_collision_tool_model(1)
+        arm = XArmAPI(self.robot_ip, is_radian=True, do_not_open=True)
+
+        arm.connect()
+        arm.clean_error()
+        arm.clean_warn()
+        arm.motion_enable(True)
+        if arm.has_err_warn:
+            _, err_warn = arm.get_err_warn_code()
+            if err_warn[0] != 0:
+                raise RuntimeError("Check whether e-stop button is pressed.")
+
+        self.gripper = arm
+        if self.robot_model == GripperModel.LITE6:
+            self.gripper.set_mode(0)
+            self.gripper.set_state(0)
+        elif self.robot_model in (GripperModel.G1, GripperModel.G2):
+            self.gripper.set_gripper_mode(0)
+            self.gripper.set_gripper_enable(True)
+            # self.gripper.set_collision_tool_model(1)
+        else:
+            raise RuntimeError(self.robot_model)
+        time.sleep(0.1)
 
         self.move(1.0, wait=True)  # open
 
@@ -189,6 +206,9 @@ class XArmGripperInterface:
         # get state from robot
         if self.robot_model == GripperModel.LITE6:
             pos = self._lite6_gripper_pos
+            robot_state = {
+                "gripper_position": pos,
+            }
         elif self.robot_model == GripperModel.G1:
             _, pos = self.gripper.get_gripper_position()
             # [-10, 850] -> [0, 1]
@@ -209,6 +229,7 @@ class XArmGripperInterface:
 
     def move(self, target_pos, wait=False):
         if self.robot_model == GripperModel.LITE6:
+            assert self.gripper.mode == 0
             if target_pos > 0.5:
                 self.gripper.open_lite6_gripper(sync=wait)
                 self._lite6_gripper_pos = 1.0
