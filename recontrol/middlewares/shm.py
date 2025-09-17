@@ -44,8 +44,8 @@ class ShmClient(mp.Process, Node):
         self.__post_init__()
 
     def __post_init__(self):
-        o = urlparse(self.shm_addr)
-        self.smm = SharedMemoryManager(address=(o.scheme, int(o.path)), authkey=b"abc")
+        host, port = self.shm_addr.split(":")
+        self.smm = SharedMemoryManager(address=(host, int(port)), authkey=b"abc")
         try:
             self.smm.connect()
         except ConnectionRefusedError:
