@@ -50,6 +50,13 @@ A `Node` dynamically inherits from any given `Middleware` parent, and factory fu
 
 Users only need to implement "pub/req" behavior in nodes. A "pub" loop should call `ring_buffer.put()` to publish data, and a "req" loop should call `request_queue.get()` to handle requests. A `Server` runs "pub/req" ("publish"/"request") and a `Client` resolves "sub/rep" ("subscribe"/"reply") automatically.
 
+### Conventions
+
+- Quaternion ordering: `(x, y, z, w)`
+- Coordinate system: `Z` up, right-handed
+- Linear velocity: COM, world frame
+- Angular velocity: world frame
+
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)
 - [`real-stanford/universal_manipulation_interface`](https://github.com/real-stanford/universal_manipulation_interface)
