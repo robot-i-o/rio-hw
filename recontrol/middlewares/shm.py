@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import threading as th
 from multiprocessing.managers import SharedMemoryManager
-from urllib.parse import urlparse
 
 from ._middleware import Node
 from .shared_memory import SharedMemoryQueue, SharedMemoryRingBuffer
