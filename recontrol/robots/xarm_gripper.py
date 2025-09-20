@@ -63,7 +63,7 @@ class XArmGripper:
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
+            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
         }[self.robot_controller][1]
         example_request_params = {
             **example_request_params,
