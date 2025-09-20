@@ -270,8 +270,7 @@ class XArm:
                 try:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
-                        req = Request(req.pop("type"), req)
-                    req.type = RequestType(req.type)
+                        req = Request(RequestType(req.pop("type")), req)
                 except queue.Empty:
                     req = None
                 if req:

@@ -7,7 +7,7 @@ from . import time
 from .request import Request
 
 
-class TemplateRequestType(Enum):
+class RequestType(Enum):
     METHOD = auto()
 
 
@@ -33,7 +33,7 @@ class Template:
 
     def __post_init__(self):
         self.example_request = {
-            "type": next(iter(TemplateRequestType)).value,
+            "type": next(iter(RequestType)).value,
         }
         self.example_data = {
             "timestamp": time.now(),
@@ -71,11 +71,11 @@ class Template:
                 try:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
-                        req = Request(req.pop("type"), req)
+                        req = Request(RequestType(req.pop("type")), req)
                 except queue.Empty:
                     req = None
                 if req:
-                    if req.type == TemplateRequestType.METHOD.value:
+                    if req.type == RequestType.METHOD:
                         raise NotImplementedError
                     else:
                         raise RuntimeError
@@ -96,6 +96,6 @@ class Template:
 
     def method(self):
         req = {
-            "type": TemplateRequestType.METHOD.value,
+            "type": RequestType.METHOD.value,
         }
         self.request_queue.put(req)
