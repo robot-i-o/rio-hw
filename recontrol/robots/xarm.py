@@ -18,29 +18,37 @@ except ImportError:
     XArmAPI = None
 
 
+ArmInfo = {
+    "xarm6": {"num_joints": 6},
+    "xarm7": {"num_joints": 7},
+    "xarm850": {"num_joints": 6},
+    "lite6": {"num_joints": 6},
+}
+
+
 class ArmModel(Enum):
-    # XARM5 = "xarm5"
-    # XARM6 = "xarm6"
+    XARM6 = "xarm6"
     XARM7 = "xarm7"
     XARM850 = "xarm850"
     LITE6 = "lite6"
 
 
 class ArmController(Enum):
-    # JOINT_POS = "joint_pos"
-    # JOINT_VEL = "joint_vel"
     TASK_POS = "task_pos"
+    JOINT_POS = "joint_pos"
+    TASK_VEL = "task_vel"
+    JOINT_VEL = "joint_vel"
 
 
-class ArmRequestType(Enum):
-    SCHEDULE_WAYPOINT = auto()
+class RequestType(Enum):
+    MOVEL = auto()
 
 
 class XArm:
     __api__ = [
         "get_state",
         "get_all_state",
-        "schedule_waypoint",
+        "moveL",
     ]
     __pub__ = True
     __req__ = True
@@ -79,6 +87,7 @@ class XArm:
         assert 0 < freq <= 250
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        num_joints = ArmInfo[robot_model]["num_joints"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
         if tcp_offset_pose is not None:
@@ -92,10 +101,11 @@ class XArm:
             assert payload_mass is not None
         if joints_init is not None:
             joints_init = np.array(joints_init, dtype=dtype)
-            assert joints_init.shape == (6,)
+            assert joints_init.shape == (num_joints,)
         self.robot_ip = robot_ip
         self.robot_model = ArmModel(robot_model)
         self.robot_controller = ArmController(robot_controller)
+        self.num_joints = num_joints
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
         self.tcp_offset_pose = tcp_offset_pose
@@ -108,14 +118,21 @@ class XArm:
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
+        example_request_params = {
+            ArmController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
+        }[self.robot_controller][1]
+        example_request_params = {
+            **example_request_params,
+            "target_time": time.now(),
+        }
+
         dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
         example_robot_state = XArmSocket.bytes_to_state(dummy_data)
         example_robot_state = {k: np.array(v, dtype=self.dtype) for k, v in example_robot_state.items()}
 
         self.example_request = {
-            "type": next(iter(ArmRequestType)).value,
-            "target_pose": np.zeros((6,), dtype=np.float32),
-            "target_time": time.now(),
+            "type": next(iter(RequestType)).value,
+            **example_request_params,
         }
         self.example_data = {
             **example_robot_state,
@@ -179,14 +196,14 @@ class XArm:
                 os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
 
             arm = self.arm
-
             # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
             # arm.set_tcp_jerk(7000)
             # arm.set_tcp_maxacc(...)
             # arm.set_joint_jerk(...)
             # arm.set_joint_maxacc(...)
+            # arm.set_linear_spd_limit_factor(1.2)
+            # arm.set_collision_sensitivity(0)
             # arm.save_conf()
-
             arm.connect()
             arm.clean_error()
             arm.clean_warn()
@@ -203,10 +220,8 @@ class XArm:
                 code = arm.set_tcp_offset(self.tcp_offset_pose)
                 assert code == 0
             if self.payload_mass is not None:
-                if self.payload_cog is not None:
-                    code = arm.set_tcp_load(self.payload_mass, self.payload_cog)
-                else:
-                    code = arm.set_tcp_load(self.payload_mass)
+                assert self.payload_cog is not None
+                code = arm.set_tcp_load(self.payload_mass, self.payload_cog)
                 assert code == 0
 
             # init pose
@@ -216,21 +231,24 @@ class XArm:
             # arm.reset(wait=True)
             # arm.move_gohome(wait=True)
 
-            # 1: servo motion mode, 7: cartesian online trajectory planning mode
-            arm.set_mode(1)
-            # arm.set_linear_spd_limit_factor(1.2)
-            # arm.set_collision_sensitivity(0)
+            if self.robot_controller == ArmController.TASK_POS:
+                arm.set_mode(1)  # 1: servo motion mode
+            else:
+                raise ValueError(self.robot_controller)
             arm.set_state(0)
             time.sleep(0.1)
 
-            code, curr_pose = arm.get_position_aa()
-            assert code == 0
-            curr_pose = np.array(curr_pose, dtype=self.dtype)
-            curr_pose[:3] *= 0.001  # convert mm to m
-            # pose interpolation
-            curr_t = time.now()
-            last_waypoint_time = curr_t
-            pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+            if self.robot_controller == ArmController.TASK_POS:
+                code, curr_pose = arm.get_position_aa()
+                assert code == 0
+                curr_pose = np.array(curr_pose, dtype=self.dtype)
+                curr_pose[:3] *= 0.001  # convert mm to m
+                # pose interpolation
+                curr_t = time.now()
+                last_waypoint_time = curr_t
+                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+            else:
+                raise ValueError(self.robot_controller)
 
             # Main loop
             dt = 1.0 / self.freq
@@ -239,10 +257,12 @@ class XArm:
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                pose_command = pose_interp(t_now)
-                pose_command[:3] *= 1000.0  # convert m to mm
-                code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
-                # code = arm.set_position_aa(*pose_command.tolist(), speed=60)  # mode=7
+                if self.robot_controller == ArmController.TASK_POS:
+                    pose_command = pose_interp(t_now)
+                    pose_command[:3] *= 1000.0  # convert m to mm
+                    code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
+                else:
+                    raise ValueError(self.robot_controller)
                 # if not (code == 0 and arm.error_code == 0 and arm.connected):
                 #     raise RuntimeError
 
@@ -251,10 +271,11 @@ class XArm:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
                         req = Request(req.pop("type"), req)
+                    req.type = RequestType(req.type)
                 except queue.Empty:
                     req = None
                 if req:
-                    if req.type == ArmRequestType.SCHEDULE_WAYPOINT.value:
+                    if req.type == RequestType.MOVEL:
                         target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
@@ -268,7 +289,7 @@ class XArm:
                         )
                         last_waypoint_time = target_time
                     else:
-                        raise RuntimeError
+                        raise ValueError(req.type)
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass
@@ -294,13 +315,13 @@ class XArm:
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def schedule_waypoint(self, pose, target_time):
-        pose = np.array(pose, dtype=self.dtype)
-        assert pose.shape == (6,)
+    def moveL(self, target_pose, target_time):
+        target_pose = np.array(target_pose, dtype=self.dtype)
+        assert target_pose.shape == (6,)
         assert target_time > time.now()
         req = {
-            "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
-            "target_pose": pose,
+            "type": RequestType.MOVEL.value,
+            "target_pose": target_pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)

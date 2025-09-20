@@ -27,14 +27,14 @@ def move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max
     drot = st.Rotation.from_euler("xyz", drot_xyz)
     target_pose[:3] += dpos
     target_pose[3:] = (drot * st.Rotation.from_rotvec(target_pose[3:])).as_rotvec()
-    arm.schedule_waypoint(target_pose.tolist(), t_cmd_target)
+    arm.moveL(target_pose.tolist(), t_cmd_target)
 
 
 def move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper):
     if sm_b0:
-        gripper.schedule_waypoint([0.0], t_cmd_target)  # close
+        gripper.moveL([0.0], t_cmd_target)  # close
     elif sm_b1:
-        gripper.schedule_waypoint([1.0], t_cmd_target)  # open
+        gripper.moveL([1.0], t_cmd_target)  # open
 
 
 def main(args):
@@ -123,6 +123,7 @@ def main(args):
 
 @dataclass
 class Args(StationCfg):
+    teleop: str = "Spacemouse"  # Gamepad, Iphone, Keyboard, Spacemouse
     mw: str = "Shm"  # middleware
     freq: int = 30
 

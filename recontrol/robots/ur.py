@@ -17,25 +17,31 @@ except ImportError:
     RTDEReceiveInterface = None
 
 
+ArmInfo = {
+    "ur5e": {"num_joints": 6},
+}
+
+
 class ArmModel(Enum):
     UR5 = "ur5e"
 
 
 class ArmController(Enum):
-    # JOINT_POS = "joint_pos"
-    # JOINT_VEL = "joint_vel"
     TASK_POS = "task_pos"
+    JOINT_POS = "joint_pos"
+    TASK_VEL = "task_vel"
+    JOINT_VEL = "joint_vel"
 
 
-class ArmRequestType(Enum):
-    SCHEDULE_WAYPOINT = auto()
+class RequestType(Enum):
+    MOVEL = auto()
 
 
 class UR:
     __api__ = [
         "get_state",
         "get_all_state",
-        "schedule_waypoint",
+        "moveL",
     ]
     __pub__ = True
     __req__ = True
@@ -80,6 +86,7 @@ class UR:
         assert 100 <= gain <= 2000
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        num_joints = ArmInfo[robot_model]["num_joints"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
         if tcp_offset_pose is not None:
@@ -93,10 +100,11 @@ class UR:
             assert payload_mass is not None
         if joints_init is not None:
             joints_init = np.array(joints_init)
-            assert joints_init.shape == (6,)
+            assert joints_init.shape == (num_joints,)
         self.robot_ip = robot_ip
         self.robot_model = ArmModel(robot_model)
         self.robot_controller = ArmController(robot_controller)
+        self.num_joints = num_joints
         self.lookahead_time = lookahead_time
         self.gain = gain
         self.max_pos_speed = max_pos_speed
@@ -111,6 +119,14 @@ class UR:
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
+        example_request_params = {
+            ArmController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
+        }[self.robot_controller][1]
+        example_request_params = {
+            **example_request_params,
+            "target_time": time.now(),
+        }
+
         rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
         receive_keys = [
             "ActualTCPPose",
@@ -128,9 +144,8 @@ class UR:
         self.receive_keys = receive_keys
 
         self.example_request = {
-            "type": next(iter(ArmRequestType)).value,
-            "target_pose": np.zeros((6,), dtype=self.dtype),
-            "target_time": time.now(),
+            "type": next(iter(RequestType)).value,
+            **example_request_params,
         }
         self.example_data = {
             **example_robot_state,
@@ -187,11 +202,14 @@ class UR:
             if self.joints_init is not None:
                 assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
 
-            curr_pose = rtde_r.getActualTCPPose()
-            # pose interpolation
-            curr_t = time.now()
-            last_waypoint_time = curr_t
-            pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+            if self.robot_controller == ArmController.TASK_POS:
+                curr_pose = rtde_r.getActualTCPPose()
+                # pose interpolation
+                curr_t = time.now()
+                last_waypoint_time = curr_t
+                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+            else:
+                raise ValueError(self.robot_controller)
 
             # Main loop
             dt = 1.0 / self.freq
@@ -200,27 +218,23 @@ class UR:
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                pose_command = pose_interp(t_now)
-                vel = 0.5
-                acc = 0.5
-                assert rtde_c.servoL(
-                    pose_command,
-                    vel,
-                    acc,  # dummy, not used by ur5
-                    dt,
-                    self.lookahead_time,
-                    self.gain,
-                )
+                if self.robot_controller == ArmController.TASK_POS:
+                    pose_command = pose_interp(t_now)
+                    vel, acc = 0.5, 0.5  # dummy, not used by ur5
+                    assert rtde_c.servoL(pose_command, vel, acc, dt, self.lookahead_time, self.gain)
+                else:
+                    raise ValueError(self.robot_controller)
 
                 # Fetch request from queue
                 try:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
                         req = Request(req.pop("type"), req)
+                    req.type = RequestType(req.type)
                 except queue.Empty:
                     req = None
                 if req:
-                    if req.type == ArmRequestType.SCHEDULE_WAYPOINT.value:
+                    if req.type == RequestType.MOVEL:
                         target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
@@ -234,7 +248,7 @@ class UR:
                         )
                         last_waypoint_time = target_time
                     else:
-                        raise RuntimeError
+                        raise ValueError(req.type)
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass
@@ -255,12 +269,12 @@ class UR:
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def schedule_waypoint(self, pose, target_time):
+    def moveL(self, pose, target_time):
         pose = np.array(pose, dtype=self.dtype)
         assert target_time > time.now()
         assert pose.shape == (6,)
         req = {
-            "type": ArmRequestType.SCHEDULE_WAYPOINT.value,
+            "type": RequestType.MOVEL.value,
             "target_pose": pose,
             "target_time": target_time,
         }
