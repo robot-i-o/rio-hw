@@ -15,18 +15,18 @@ class GripperModel(Enum):
 
 
 class GripperController(Enum):
-    JOINT_POS = "joint_pos"
+    TASK_POS = "task_pos"
 
 
-class GripperRequestType(Enum):
-    SCHEDULE_WAYPOINT = auto()
+class RequestType(Enum):
+    MOVEL = auto()
 
 
 class WsgGripper:
     __api__ = [
         "get_state",
         "get_all_state",
-        "schedule_waypoint",
+        "moveL",
     ]
     __pub__ = True
     __req__ = True
@@ -36,7 +36,7 @@ class WsgGripper:
         robot_ip: str = "192.168.1.111",
         robot_port: int = 1000,
         robot_model: str = "wsg50",
-        robot_controller: str = "joint_pos",
+        robot_controller: str = "task_pos",
         move_max_speed: float = 200.0,
         use_meters: bool = True,
         home_to_open: bool = True,
@@ -61,6 +61,14 @@ class WsgGripper:
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
 
     def __post_init__(self):
+        example_request_params = {
+            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
+        }[self.robot_controller][1]
+        example_request_params = {
+            **example_request_params,
+            "target_time": time.now(),
+        }
+
         example_robot_state = {
             "gripper_state": 0,
             "gripper_position": 0.0,
@@ -69,9 +77,8 @@ class WsgGripper:
         }
 
         self.example_request = {
-            "type": next(iter(GripperRequestType)).value,
-            "target_pose": np.zeros((1,), dtype=self.dtype),
-            "target_time": time.now(),
+            "type": next(iter(RequestType)).value,
+            **example_request_params,
         }
         self.example_data = {
             **example_robot_state,
@@ -92,12 +99,15 @@ class WsgGripper:
             wsg.ack_fault()
             wsg.homing(positive_direction=self.home_to_open, wait=True)
 
-            curr_info = wsg.script_query()
-            curr_pos = curr_info["position"]
-            # pose interpolation
-            curr_t = time.now()
-            last_waypoint_time = curr_t
-            pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+            if self.robot_controller == GripperController.TASK_POS:
+                curr_info = wsg.script_query()
+                curr_pos = curr_info["position"]
+                # pose interpolation
+                curr_t = time.now()
+                last_waypoint_time = curr_t
+                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+            else:
+                raise ValueError(self.robot_controller)
 
             # Main loop
             dt = 1.0 / self.freq
@@ -107,9 +117,12 @@ class WsgGripper:
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                target_pos = pose_interp(t_now)[0]
-                target_vel = (target_pos - pose_interp(t_now - dt)[0]) / dt
-                info = wsg.script_position_pd(position=target_pos, velocity=target_vel)
+                if self.robot_controller == GripperController.TASK_POS:
+                    target_pos = pose_interp(t_now)[0]
+                    target_vel = (target_pos - pose_interp(t_now - dt)[0]) / dt
+                    info = wsg.script_position_pd(position=target_pos, velocity=target_vel)
+                else:
+                    raise ValueError(self.robot_controller)
 
                 # get state from robot
                 robot_state = {
@@ -135,10 +148,11 @@ class WsgGripper:
                     req = self.request_queue.get()
                     if isinstance(req, dict):
                         req = Request(req.pop("type"), req)
+                    req.type = RequestType(req.type)
                 except queue.Empty:
                     req = None
                 if req:
-                    if req.type == GripperRequestType.SCHEDULE_WAYPOINT.value:
+                    if req.type == RequestType.MOVEL:
                         target_pos = req.params["target_pose"][0]
                         target_pos = target_pos * self.scale
                         target_time = float(req.params["target_time"])
@@ -153,7 +167,7 @@ class WsgGripper:
                         )
                         last_waypoint_time = target_time
                     else:
-                        raise RuntimeError
+                        raise ValueError(req.type)
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass
@@ -169,13 +183,13 @@ class WsgGripper:
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def schedule_waypoint(self, pose, target_time):
-        pose = np.array(pose, dtype=self.dtype)
-        assert pose.shape == (1,)
+    def moveL(self, target_pose, target_time):
+        target_pose = np.array(target_pose, dtype=self.dtype)
+        assert target_pose.shape == (1,)
         assert target_time > time.now()
         req = {
-            "type": GripperRequestType.SCHEDULE_WAYPOINT.value,
-            "target_pose": pose,
+            "type": RequestType.MOVEL.value,
+            "target_pose": target_pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)
