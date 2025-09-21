@@ -18,9 +18,10 @@ requires-python = ">=3.10"
 dependencies = [
     "cloudpickle",
     "numpy>=2.0",
+    "opencv-python",
     "scipy",
-    "atomics",  # shared memory
-    "zerorpc",  # middleware (optional)
+    "tyro",  # command-line interface
+    "zarr",  # data storage
 ]
 
 [project.optional-dependencies]
@@ -29,16 +30,20 @@ dev = [
     "pre-commit",
     "unittest-parallel",
 ]
-# --- interfaces ---
-spacemouse = [
-    "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz",
+# --- nodes ---
+interfaces = [
+    "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz",  # spacemouse
 ]
-# --- robots ---
-ur = [
-    "ur-rtde==1.5.6",
+middlewares = [
+    "atomics",  # shm
+    "portal",
+    "zerorpc",
+    "eclipse-zenoh",  # zenoh
+    "pyzmq",  # zmq
 ]
-xarm = [
-    "xarm-python-sdk==1.17.0",
+robots = [
+    "ur-rtde==1.5.6",  # ur
+    "xarm-python-sdk==1.17.0",  # xarm
 ]
 
 [tool.setuptools.packages.find]
