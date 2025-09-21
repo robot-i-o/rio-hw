@@ -54,8 +54,7 @@ def main(args):
     from recontrol import time
     from recontrol.middleware import ServerManager
 
-    servers = [teleop_server, arm_server, gripper_server, arm2_server, gripper2_server]
-    with ServerManager(args.mw, servers, start_method=args.mp_method):
+    with ServerManager(args.mw, [teleop_server, arm_server, gripper_server, arm2_server, gripper2_server]):
         with (
             teleop_client() as teleop,
             arm_client() if arm_client else nullcontext() as arm,
@@ -127,7 +126,7 @@ def main(args):
 class Args(StationCfg):
     teleop: str = "Spacemouse"  # Gamepad, Iphone, Keyboard, Spacemouse
     mw: str = "Shm"  # middleware
-    mp_method: str = "fork"
+    mp_method: str | None = "fork"
     freq: int = 30
 
 
