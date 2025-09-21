@@ -7,8 +7,8 @@ class Node(Protocol):
     __pub__: bool
     __req__: bool
 
-    example_data: Any
-    example_request: Any
+    example_data: dict
+    example_request: dict
     ring_buffer: Any
     request_queue: Any
     worker: Callable | None
