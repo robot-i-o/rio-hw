@@ -18,6 +18,8 @@ class GripperModel(Enum):
     LITE6 = "lite6"
     G1 = "g1"
     G2 = "g2"
+    ROBOTIQ_2F85 = "robotiq_2f85"
+    ROBOTIQ_2F140 = "robotiq_2f140"
 
 
 class GripperController(Enum):
@@ -205,6 +207,11 @@ class XArmGripperInterface:
             self.gripper.set_gripper_mode(0)
             self.gripper.set_gripper_enable(True)
             # self.gripper.set_collision_tool_model(1)
+        elif self.robot_model in (GripperModel.ROBOTIQ_2F85, GripperModel.ROBOTIQ_2F140):
+            self.gripper.set_mode(0)
+            self.gripper.set_state(0)
+            self.gripper.robotiq_reset()
+            self.gripper.robotiq_set_activate()
         else:
             raise ValueError(self.robot_model)
         time.sleep(0.1)
@@ -238,6 +245,14 @@ class XArmGripperInterface:
             robot_state = {
                 "gripper_position": pos,
             }
+        elif self.robot_model in (GripperModel.ROBOTIQ_2F85, GripperModel.ROBOTIQ_2F140):
+            _, result = self.gripper.robotiq_get_status()
+            pos = result[6]  # [0, 255]
+            # [255, 0] -> [0, 1]
+            pos = 1 - pos / 255  # 0 is open and 255 is closed
+            robot_state = {
+                "gripper_position": pos,
+            }
         else:
             raise ValueError(self.robot_model)
         return robot_state
@@ -259,6 +274,10 @@ class XArmGripperInterface:
             # [0, 1] -> [0, 84]
             pos = target_pos * 84
             self.gripper.set_gripper_g2_position(pos, speed=225, force=50, wait=wait)  # speed: [15, 225], force: [1, 100]
+        elif self.robot_model in (GripperModel.ROBOTIQ_2F85, GripperModel.ROBOTIQ_2F140):
+            # [0, 1] -> [255, 0]
+            pos = 255 - target_pos * 255  # 0 is open and 255 is closed
+            self.gripper.robotiq_set_position(pos, speed=255, force=255, wait=wait)  # speed: [0, 255], force: [0, 255]
         else:
             raise ValueError(self.robot_model)
 
