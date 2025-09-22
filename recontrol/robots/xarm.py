@@ -5,7 +5,6 @@ import struct
 from enum import Enum, auto
 
 import numpy as np
-import scipy.spatial.transform as st
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
@@ -370,17 +369,10 @@ class XArmSocket:
         u64 = struct.unpack(">Q", data)[0]
         return u64
 
-    def pose_aa_to_rpy(pose_aa):
-        rpy = st.Rotation.from_rotvec(pose_aa[3:]).as_euler("xyz")
-        pose = [*pose_aa[:3], *list(rpy)]
-        return pose
-
     def bytes_to_state(data):
         state = {}
         for key, (start, end) in XArmSocket.P30000.items():
             state[key] = XArmSocket.bytes_to_fp32_list(data[start - 1 : end])
-        # state["TargetTCPPoseRPY"] = XArmSocket.pose_aa_to_rpy(state["TargetTCPPose"])
-        # state["ActualTCPPoseRPY"] = XArmSocket.pose_aa_to_rpy(state["ActualTCPPose"])
         return state
 
 
