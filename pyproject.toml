@@ -16,7 +16,6 @@ classifiers = [
 dynamic = ["version", "readme"]
 requires-python = ">=3.10"
 dependencies = [
-    "cloudpickle",
     "numpy>=2.0",
     "opencv-python",
     "scipy",
@@ -29,6 +28,10 @@ dev = [
     "ruff",
     "pre-commit",
     "unittest-parallel",
+]
+serializers = [
+    "cloudpickle",
+    "ormsgpack",
 ]
 # --- nodes ---
 interfaces = [

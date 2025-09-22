@@ -6,6 +6,11 @@ try:
 except ImportError:
     cloudpickle = None
 
+try:
+    import ormsgpack
+except ImportError:
+    ormsgpack = None
+
 
 class Serializer(Protocol):
     @staticmethod
@@ -25,6 +30,16 @@ class CloudpickleSerializer:
     @staticmethod
     def unpack(b_data: bytes):
         return cloudpickle.loads(b_data)
+
+
+class OrmsgpackSerializer:
+    @staticmethod
+    def pack(data) -> bytes:
+        return ormsgpack.packb(data, option=ormsgpack.OPT_SERIALIZE_NUMPY)
+
+    @staticmethod
+    def unpack(b_data: bytes):
+        return ormsgpack.unpackb(b_data)
 
 
 class PickleSerializer:
