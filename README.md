@@ -23,6 +23,15 @@ source .venv/bin/activate
 uv sync --all-extras
 ```
 
+### Cameras
+
+Realsense:
+```bash
+sudo ./scripts/setup/realsense.sh
+# verify install
+realsense-viewer
+```
+
 ### Interfaces
 
 Spacemouse:
