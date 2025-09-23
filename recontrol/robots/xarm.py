@@ -41,6 +41,9 @@ class ArmController(Enum):
 
 class RequestType(Enum):
     MOVEL = auto()
+    MOVEJ = auto()
+    SPEEDL = auto()
+    SPEEDJ = auto()
 
 
 class XArm:
@@ -48,6 +51,9 @@ class XArm:
         "get_state",
         "get_all_state",
         "moveL",
+        "moveJ",
+        "speedL",
+        "speedJ",
     ]
     __pub__ = True
     __req__ = True
@@ -119,6 +125,9 @@ class XArm:
     def __post_init__(self):
         example_request_params = {
             ArmController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
+            ArmController.JOINT_POS: (RequestType.MOVEJ, {"target_jointq": np.zeros((self.num_joints,), dtype=self.dtype)}),
+            ArmController.TASK_VEL: (RequestType.SPEEDL, {"target_twist": np.zeros((6,), dtype=self.dtype)}),
+            ArmController.JOINT_VEL: (RequestType.SPEEDJ, {"target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype)}),
         }[self.robot_controller][1]
         example_request_params = {
             **example_request_params,
@@ -232,6 +241,8 @@ class XArm:
 
             if self.robot_controller == ArmController.TASK_POS:
                 arm.set_mode(1)  # 1: servo motion mode
+            elif self.robot_controller == ArmController.JOINT_POS:
+                arm.set_mode(1)  # 1: servo motion mode
             else:
                 raise ValueError(self.robot_controller)
             arm.set_state(0)
@@ -260,6 +271,8 @@ class XArm:
                     pose_command = pose_interp(t_now)
                     pose_command[:3] *= 1000.0  # convert m to mm
                     code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
+                elif self.robot_controller == ArmController.JOINT_POS:
+                    raise NotImplementedError
                 else:
                     raise ValueError(self.robot_controller)
                 # if not (code == 0 and arm.error_code == 0 and arm.connected):
@@ -286,6 +299,12 @@ class XArm:
                             last_waypoint_time=last_waypoint_time,
                         )
                         last_waypoint_time = target_time
+                    elif req.type == RequestType.MOVEJ:
+                        raise NotImplementedError
+                    elif req.type == RequestType.SPEEDL:
+                        raise NotImplementedError
+                    elif req.type == RequestType.SPEEDJ:
+                        raise NotImplementedError
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()
@@ -320,6 +339,39 @@ class XArm:
         req = {
             "type": RequestType.MOVEL.value,
             "target_pose": target_pose,
+            "target_time": target_time,
+        }
+        self.request_queue.put(req)
+
+    def moveJ(self, target_jointq, target_time):
+        target_jointq = np.array(target_jointq, dtype=self.dtype)
+        assert target_jointq.shape == (self.num_joints,)
+        assert target_time > time.now()
+        req = {
+            "type": RequestType.MOVEJ.value,
+            "target_jointq": target_jointq,
+            "target_time": target_time,
+        }
+        self.request_queue.put(req)
+
+    def speedL(self, target_twist, target_time):
+        target_twist = np.array(target_twist, dtype=self.dtype)
+        assert target_twist.shape == (6,)
+        assert target_time > time.now()
+        req = {
+            "type": RequestType.SPEEDL.value,
+            "target_twist": target_twist,
+            "target_time": target_time,
+        }
+        self.request_queue.put(req)
+
+    def speedJ(self, target_jointqd, target_time):
+        target_jointqd = np.array(target_jointqd, dtype=self.dtype)
+        assert target_jointqd.shape == (self.num_joints,)
+        assert target_time > time.now()
+        req = {
+            "type": RequestType.SPEEDJ.value,
+            "target_jointqd": target_jointqd,
             "target_time": target_time,
         }
         self.request_queue.put(req)
