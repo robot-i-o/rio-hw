@@ -6,7 +6,7 @@
 - Option 1: Use `uvx ruff check` and `uvx format --check` to check for code quality issues.
 - Option 2: Use `uvx pre-commit run -a`. To automatically run pre-commit hooks with `git commit`, run `uvx pre-commit install`.
 
-3. Run tests with `uv run --extra dev unittest-parallel -s recontrol._tests`.
+3. Run tests with `uv run --extra dev pytest -n 4`.
 
 4. Open a pull request on the main repository.
 
