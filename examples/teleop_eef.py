@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 import scipy.spatial.transform as st
 import tyro
 
-from .nodes import StationCfg, make_node
+from ._nodes import StationCfg, make_node
 
 
 def move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max_rot_speed, target_pose):
@@ -38,6 +38,69 @@ def move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper):
         gripper.moveL([1.0], t_cmd_target)  # open
 
 
+def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
+    from recontrol import time
+
+    sm = teleop
+    target_pose = arm.get_state()["TargetTCPPose"] if arm else None
+    target_pose2 = arm2.get_state()["TargetTCPPose"] if arm2 else None
+    teleop_mode = 0
+    last_mode_change = time.now()
+
+    input("Press Enter to start")
+    try:
+        # Main loop
+        freq = args.freq
+        dt = 1.0 / freq
+        command_latency = dt / 2
+        t_start = time.now()
+        it = 0
+        while True:
+            t_cycle_end = t_start + (it + 1) * dt
+            t_sample = t_cycle_end - command_latency
+            t_cmd_target = t_cycle_end + dt
+
+            time.precise_wait(t_sample)
+            # get teleop command
+            sm_motion = sm.get_motion_state_transformed()
+            sm_b0 = sm.is_button_pressed(0)
+            sm_b1 = sm.is_button_pressed(1)
+            if sm_b0 and sm_b1:
+                t_mode = time.now()
+                if t_mode - last_mode_change > 1.0:  # 1 second delay between mode changes
+                    teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
+                    last_mode_change = t_mode
+
+            if arm:
+                max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
+                move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max_rot_speed, target_pose)
+
+            if arm2:
+                max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
+                move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm2, max_pos_speed, max_rot_speed, target_pose2)
+
+            if gripper:
+                move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper)
+
+            if gripper2:
+                move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper2)
+
+            # logging
+            if it % freq == 0:
+                print(
+                    f"t: {t_cycle_end - t_start:.3f}s",
+                    "|",
+                    f"teleop_mode: {teleop_mode}",
+                    "|",
+                    f"sm_motion: {sm_motion}",
+                )
+
+            time.precise_wait(t_cycle_end)
+            it += 1
+    except KeyboardInterrupt:
+        pass
+
+
 def main(args):
     teleop_server, teleop_client = make_node(args.mw, "interfaces", args.teleop, asdict(args.teleop_cfg))
     arm_server, arm_client = make_node(args.mw, "robots", args.arm, asdict(args.arm_cfg))
@@ -51,7 +114,6 @@ def main(args):
     else:
         gripper2_server, gripper2_client = lambda: None, None
 
-    from recontrol import time
     from recontrol.middleware import ServerManager
 
     with ServerManager(args.mw, [teleop_server, arm_server, gripper_server, arm2_server, gripper2_server]):
@@ -62,64 +124,7 @@ def main(args):
             arm2_client() if arm2_client else nullcontext() as arm2,
             gripper2_client() if gripper2_client else nullcontext() as gripper2,
         ):
-            freq = args.freq
-            sm = teleop
-            target_pose = arm.get_state()["TargetTCPPose"] if arm else None
-            target_pose2 = arm2.get_state()["TargetTCPPose"] if arm2 else None
-            teleop_mode = 0
-            last_mode_change = time.now()
-
-            input("Press Enter to start")
-            try:
-                # Main loop
-                dt = 1.0 / freq
-                command_latency = dt / 2
-                t_start = time.now()
-                it = 0
-                while True:
-                    t_cycle_end = t_start + (it + 1) * dt
-                    t_sample = t_cycle_end - command_latency
-                    t_cmd_target = t_cycle_end + dt
-
-                    time.precise_wait(t_sample)
-                    # get teleop command
-                    sm_motion = sm.get_motion_state_transformed()
-                    sm_b0 = sm.is_button_pressed(0)
-                    sm_b1 = sm.is_button_pressed(1)
-                    if sm_b0 and sm_b1:
-                        t_mode = time.now()
-                        if t_mode - last_mode_change > 1.0:  # 1 second delay between mode changes
-                            teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
-                            last_mode_change = t_mode
-
-                    if arm:
-                        max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
-                        move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max_rot_speed, target_pose)
-
-                    if arm2:
-                        max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
-                        move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm2, max_pos_speed, max_rot_speed, target_pose2)
-
-                    if gripper:
-                        move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper)
-
-                    if gripper2:
-                        move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper2)
-
-                    # logging
-                    if it % freq == 0:
-                        print(
-                            f"t: {t_cycle_end - t_start:.3f}s",
-                            "|",
-                            f"teleop_mode: {teleop_mode}",
-                            "|",
-                            f"sm_motion: {sm_motion}",
-                        )
-
-                    time.precise_wait(t_cycle_end)
-                    it += 1
-            except KeyboardInterrupt:
-                pass
+            teleop_eef(args, teleop, arm, gripper, arm2, gripper2)
 
 
 @dataclass
