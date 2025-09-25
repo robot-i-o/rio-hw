@@ -7,6 +7,7 @@ from enum import Enum, auto
 import numpy as np
 
 from .. import time
+from ..filters import LowPassFilter
 from ..middleware import ClientFactory, ServerFactory
 from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
@@ -70,6 +71,7 @@ class XArm:
         payload_cog=None,
         joints_init=None,
         joints_init_speed=1.05,
+        joint_lowpass_alpha=0.1,
         soft_real_time=False,
         dtype=np.float64,
         *,
@@ -86,6 +88,7 @@ class XArm:
             payload_cog: 3d position, center of gravity
             joint_init:
             joint_init_speed:
+            joint_lowpass_alpha:
             soft_real_time: enables round-robin scheduling and real-time priority
             dtype:
         """
@@ -118,6 +121,7 @@ class XArm:
         self.payload_cog = payload_cog
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
+        self.joint_lowpass_alpha = joint_lowpass_alpha
         self.soft_real_time = soft_real_time
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
@@ -257,6 +261,13 @@ class XArm:
                 curr_t = time.now()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+            elif self.robot_controller == ArmController.JOINT_POS:
+                code, curr_jointq = arm.get_servo_angle()
+                assert code == 0
+                curr_jointq = np.array(curr_jointq[: self.num_joints], dtype=self.dtype)
+                # joint filtering/smoothing
+                target_jointq = curr_jointq
+                lowpass_filter = LowPassFilter(alpha=self.joint_lowpass_alpha, initial=curr_jointq)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -272,7 +283,8 @@ class XArm:
                     pose_command[:3] *= 1000.0  # convert m to mm
                     code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
                 elif self.robot_controller == ArmController.JOINT_POS:
-                    raise NotImplementedError
+                    jointq_command = lowpass_filter(target_jointq)
+                    code = arm.set_servo_angle_j(jointq_command.tolist(), is_radian=True)
                 else:
                     raise ValueError(self.robot_controller)
                 # if not (code == 0 and arm.error_code == 0 and arm.connected):
@@ -300,7 +312,7 @@ class XArm:
                         )
                         last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
-                        raise NotImplementedError
+                        target_jointq = np.array(req.params.get("target_jointq"), dtype=self.dtype)
                     elif req.type == RequestType.SPEEDL:
                         raise NotImplementedError
                     elif req.type == RequestType.SPEEDJ:
