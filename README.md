@@ -65,6 +65,8 @@ Users only need to implement "pub/req" behavior in nodes. A "pub" loop should ca
 - Coordinate system: `Z` up, right-handed
 - Linear velocity: COM, world frame
 - Angular velocity: world frame
+- Images: `(height, width, channel)`, RGB channel order
+- SI units: `seconds`, `meters`, `kilograms`, `radians`
 
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)
