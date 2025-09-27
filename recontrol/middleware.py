@@ -1,5 +1,7 @@
+import importlib
 import inspect
 import multiprocessing as mp
+import sys
 from collections.abc import Callable
 
 from . import middlewares
@@ -9,37 +11,68 @@ from .serializers import CloudpickleSerializer
 SERVERLESS_MW = ("Shm", "Thread")
 
 
-def class_factory(name, bases, module, attrs=None):
-    Cls = type(name, bases, {})
-    Cls.__module__ = module.__name__
-    # setattr(module, name, Cls)  # register new class for module
-    if attrs is not None:
-        for attr, value in attrs.items():
-            setattr(Cls, attr, value)
+def __factory__(role, mw, node_module, node_name):
+    _Node = getattr(importlib.import_module(node_module), node_name)
+    module = sys.modules.get(node_module) or inspect.getmodule(node_module)
+    name = f"{node_name}{mw}{role}"
+    Cls = getattr(module, name, None)
+    if Cls is None:
+        Cls = Factory(role, mw, _Node)  # need to recreate class in case of multiprocessing
+    return Cls.__new__(Cls)  # not __init__(), using __setstate__() instead
+
+
+def __factory_reduce__(self):
+    args = getattr(self.__class__, "__factory_args__", None)
+    if args is None:  # fallback to default __reduce__
+        fn, args = self.__class__, ()
+    else:
+        fn = __factory__
+    getstate_fn = getattr(self, "__getstate__", None)
+    state = getstate_fn() if getstate_fn is not None else getattr(self, "__dict__", {})
+    return (fn, args, state)
+
+
+def Factory(role, mw, _Node):
+    node_module, node_name = _Node.__module__, _Node.__name__
+    module = sys.modules.get(node_module) or inspect.getmodule(_Node)
+    name = f"{node_name}{mw}{role}"
+    Cls = getattr(module, name, None)
+    if Cls is not None:
+        return Cls
+
+    # dynamic inheritance
+    MwCls = getattr(middlewares, f"{mw}{role}")
+    if role == "Server":
+        bases = (MwCls,) if mw in SERVERLESS_MW else (_Node, MwCls)
+    elif role == "Client":
+        bases = (_Node, MwCls) if mw in SERVERLESS_MW else (MwCls,)
+    else:
+        raise ValueError(role)
+    # custom attributes
+    attrs = {k: getattr(_Node, k) for k in ("__api__", "__pub__", "__req__")}
+    attrs["__factory_args__"] = (role, mw, node_module, node_name)
+    attrs["__reduce__"] = __factory_reduce__
+
+    def class_factory(module, name, bases, attrs=None):
+        Cls = type(name, bases, {})
+        Cls.__module__ = module.__name__
+        if attrs is not None:
+            for attr, value in attrs.items():
+                setattr(Cls, attr, value)
+        return Cls
+
+    Cls = class_factory(module, name, bases, attrs)
+    setattr(module, name, Cls)  # register new class for module
     return Cls
 
 
 def ServerFactory(mw, _Node, *args, **kwargs):
-    # dynamic inheritance
-    MwCls = getattr(middlewares, f"{mw}Server")
-    Module = inspect.getmodule(_Node)
-    if mw in SERVERLESS_MW:
-        attrs = {k: getattr(_Node, k) for k in ("__api__", "__pub__", "__req__")}
-        Cls = class_factory(f"{_Node.__name__}{mw}Server", (MwCls,), Module, attrs)
-    else:
-        Cls = class_factory(f"{_Node.__name__}{mw}Server", (_Node, MwCls), Module)
+    Cls = Factory("Server", mw, _Node)
     return Cls(*args, **kwargs)
 
 
 def ClientFactory(mw, _Node, *args, **kwargs):
-    # dynamic inheritance
-    MwCls = getattr(middlewares, f"{mw}Client")
-    Module = inspect.getmodule(_Node)
-    if mw in SERVERLESS_MW:
-        Cls = class_factory(f"{_Node.__name__}{mw}Client", (_Node, MwCls), Module)
-    else:
-        attrs = {k: getattr(_Node, k) for k in ("__api__", "__pub__", "__req__")}
-        Cls = class_factory(f"{_Node.__name__}{mw}Client", (MwCls,), Module, attrs)
+    Cls = Factory("Client", mw, _Node)
     return Cls(*args, **kwargs)
 
 
