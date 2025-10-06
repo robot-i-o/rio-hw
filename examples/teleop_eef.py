@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 import scipy.spatial.transform as st
 import tyro
@@ -129,7 +129,13 @@ def main(args):
 
 @dataclass
 class Args(StationCfg):
+    @dataclass
+    class TeleopCfg:
+        addr: str = "127.0.0.1:5000"
+
     teleop: str = "Spacemouse"  # Gamepad, Iphone, Keyboard, Spacemouse
+    teleop_cfg: TeleopCfg = field(default_factory=lambda: Args.TeleopCfg())
+
     mw: str = "Shm"  # middleware
     mp_method: str | None = "fork"
     freq: int = 30

@@ -4,10 +4,6 @@ from dataclasses import dataclass, field
 @dataclass
 class DualLite6Station:
     @dataclass
-    class TeleopCfg:
-        addr: str = "127.0.0.1:5000"
-
-    @dataclass
     class ArmCfg:
         robot_ip: str = "192.168.1.111"
         addr: str = "127.0.0.1:5010"
@@ -20,9 +16,6 @@ class DualLite6Station:
         robot_ip: str = "192.168.1.111"
         addr: str = "127.0.0.1:5020"
         robot_model: str = "lite6"
-
-    teleop: str = "Spacemouse"
-    teleop_cfg: TeleopCfg = field(default_factory=lambda: DualLite6Station.TeleopCfg())
 
     arm: str | None = "XArm"
     arm_cfg: ArmCfg = field(
