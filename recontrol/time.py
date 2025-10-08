@@ -48,11 +48,11 @@ class Rate:
 
 def precise_sleep(dt: float, slack_dt: float = 0.001):
     # combine time.sleep and spinning to minimize jitter
-    t_start = now()
+    t_start = _now()
     if dt > slack_dt:
         sleep(dt - slack_dt)
     t_end = t_start + dt
-    while now() < t_end:
+    while _now() < t_end:
         pass
 
 
