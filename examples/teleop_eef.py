@@ -8,10 +8,9 @@ import tyro
 from ._nodes import StationCfg, make_node
 
 
-def move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max_rot_speed, target_pose):
-    dpos = sm_motion[:3] * (max_pos_speed / freq)
-    drot_xyz = sm_motion[3:] * (max_rot_speed / freq)
-
+def move_arm(arm, freq, t_cmd_target, teleop_mode, delta_pose, target_pose, max_pos_speed, max_rot_speed):
+    dpos = delta_pose[:3] * (max_pos_speed / freq)
+    drot_xyz = delta_pose[3:] * (max_rot_speed / freq)
     if teleop_mode == 0:
         # 2D translation mode
         drot_xyz[:] = 0
@@ -24,28 +23,42 @@ def move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max
         dpos[:] = 0
     else:
         raise RuntimeError(teleop_mode)
-
     drot = st.Rotation.from_euler("xyz", drot_xyz)
     target_pose[:3] += dpos
     target_pose[3:] = (drot * st.Rotation.from_rotvec(target_pose[3:])).as_rotvec()
     arm.moveL(target_pose.tolist(), t_cmd_target)
 
 
-def move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper):
+def move_gripper(gripper, freq, t_cmd_target, teleop_mode, target_pose):
+    if target_pose is not None:
+        gripper.moveL([target_pose], t_cmd_target)
+
+
+def poll_spacemouse(sm, t_sample, t_last_mode_change, teleop_mode):
+    sm_motion = sm.get_motion_state_transformed()
+    sm_b0 = sm.is_button_pressed(0)
+    sm_b1 = sm.is_button_pressed(1)
+    if sm_b0 and sm_b1:
+        if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
+            teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
+            t_last_mode_change = t_sample
+    delta_arm_pose = sm_motion
     if sm_b0:
-        gripper.moveL([0.0], t_cmd_target)  # close
+        gripper_pose = 0.0  # close
     elif sm_b1:
-        gripper.moveL([1.0], t_cmd_target)  # open
+        gripper_pose = 1.0  # open
+    else:
+        gripper_pose = None
+    return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
 
 
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from recontrol import time
 
-    sm = teleop
     target_pose = arm.get_state()["TargetTCPPose"] if arm else None
     target_pose2 = arm2.get_state()["TargetTCPPose"] if arm2 else None
     teleop_mode = 0
-    last_mode_change = time.now()
+    t_last_mode_change = time.now()
 
     input("Press Enter to start")
     try:
@@ -62,28 +75,25 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 
             time.precise_wait(t_sample)
             # get teleop command
-            sm_motion = sm.get_motion_state_transformed()
-            sm_b0 = sm.is_button_pressed(0)
-            sm_b1 = sm.is_button_pressed(1)
-            if sm_b0 and sm_b1:
-                t_mode = time.now()
-                if t_mode - last_mode_change > 1.0:  # 1 second delay between mode changes
-                    teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
-                    last_mode_change = t_mode
+            if args.teleop == "Spacemouse":
+                polled = poll_spacemouse(teleop, t_sample, t_last_mode_change, teleop_mode)
+            else:
+                raise RuntimeError(args.teleop)
+            delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode = polled
 
             if arm:
                 max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
-                move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm, max_pos_speed, max_rot_speed, target_pose)
+                move_arm(arm, freq, t_cmd_target, teleop_mode, delta_arm_pose, target_pose, max_pos_speed, max_rot_speed)
 
             if arm2:
                 max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
-                move_arm(freq, t_cmd_target, sm_motion, teleop_mode, arm2, max_pos_speed, max_rot_speed, target_pose2)
+                move_arm(arm, freq, t_cmd_target, teleop_mode, delta_arm_pose, target_pose2, max_pos_speed, max_rot_speed)
 
             if gripper:
-                move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper)
+                move_gripper(gripper, freq, t_cmd_target, teleop_mode, gripper_pose)
 
             if gripper2:
-                move_gripper(freq, t_cmd_target, sm_b0, sm_b1, gripper2)
+                move_gripper(gripper2, freq, t_cmd_target, teleop_mode, gripper_pose)
 
             # logging
             if it % freq == 0:
@@ -92,7 +102,9 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
                     "|",
                     f"teleop_mode: {teleop_mode}",
                     "|",
-                    f"sm_motion: {sm_motion}",
+                    f"delta_arm_pose: {delta_arm_pose}",
+                    "|",
+                    f"gripper_pose: {gripper_pose}",
                 )
 
             time.precise_wait(t_cycle_end)
@@ -144,5 +156,5 @@ class Args(StationCfg):
 if __name__ == "__main__":
     args = tyro.cli(Args)
     print(args)
-    mp.set_start_method(args.mp_method)
+    mp.set_start_method(args.mp_method, force=True)
     main(args)
