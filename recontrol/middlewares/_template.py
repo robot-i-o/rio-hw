@@ -3,8 +3,9 @@ from enum import Enum, auto
 
 import numpy as np
 
-from . import time
-from .request import Request
+from .. import time
+from ..middleware import ClientFactory, ServerFactory
+from ..request import Request
 
 
 class RequestType(Enum):
@@ -99,3 +100,11 @@ class Template:
             "type": RequestType.METHOD.value,
         }
         self.request_queue.put(req)
+
+
+def TemplateServer(mw, *args, **kwargs):
+    return ServerFactory(mw, Template, *args, **kwargs)
+
+
+def TemplateClient(mw, *args, **kwargs):
+    return ClientFactory(mw, Template, *args, **kwargs)
