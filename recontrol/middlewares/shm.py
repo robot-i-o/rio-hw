@@ -25,6 +25,7 @@ class ShmClient(mp.Process, Node):
         self,
         daemon: bool = True,
         shm_addr: str = "127.0.0.1:5555",  # NOTE: use same addr across all node processes
+        get_time_budget: float = 0.2,
         *,
         freq: int = 100,
         max_buffer_size: int = 30,
@@ -35,6 +36,7 @@ class ShmClient(mp.Process, Node):
     ):
         super().__init__(daemon=daemon)
         self.shm_addr = shm_addr
+        self.get_time_budget = get_time_budget
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
@@ -60,7 +62,7 @@ class ShmClient(mp.Process, Node):
                 shm_manager=self.smm,
                 examples=self.example_data,
                 get_max_k=self.max_buffer_size,
-                get_time_budget=0.2,
+                get_time_budget=self.get_time_budget,
                 put_desired_frequency=self.freq,
             )
         else:
