@@ -34,6 +34,8 @@ realsense-viewer
 
 ### Interfaces
 
+Gello: [`docs/gello.md`](docs/gello.md)
+
 Spacemouse:
 ```bash
 sudo ./scripts/setup/spacemouse.sh
