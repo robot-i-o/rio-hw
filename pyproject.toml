@@ -36,12 +36,12 @@ serializers = [
 ]
 # --- nodes ---
 cameras = [
-    "pyrealsense2==2.54.2.5684",  # realsense
+    "pyrealsense2==2.54.2.5684; sys_platform != 'darwin'",  # realsense
 ]
 interfaces = [
     "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz",  # spacemouse
     "dynamixel-sdk",  # gello
-    "gello @ git+https://github.com/etaoxing/gello_software.git@pip_packaging",
+    "gello @ https://github.com/etaoxing/gello_software/archive/82a7e3addb93de93e1696835c5a7feea8831fe85.tar.gz",
 ]
 middlewares = [
     "atomics",  # shm
@@ -51,7 +51,7 @@ middlewares = [
     "pyzmq",  # zmq
 ]
 robots = [
-    "ur-rtde==1.5.6",  # ur
+    "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk==1.17.0",  # xarm
 ]
 
