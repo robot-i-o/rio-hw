@@ -8,7 +8,7 @@ class Request:
     """Generic request container."""
 
     type: Enum
-    params: dict = None
+    params: dict
     id: str = None
 
     def __post_init__(self):
