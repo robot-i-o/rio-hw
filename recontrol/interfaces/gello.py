@@ -21,11 +21,11 @@ class GelloInterface:
         self,
         port: str = "/dev/ttyUSB0",
         baudrate: int = 57600,
-        joint_ids: tuple[int] = (1, 2, 3, 4, 5, 6, 7, 8),
-        joint_offsets: tuple[float] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-        joint_signs: tuple[int] = (1, 1, 1, 1, 1, 1, 1, 1),
-        gripper_config: tuple[int] = (0, 0, 0),
-        start_joints: tuple[float] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        joint_ids: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8),
+        joint_offsets: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        joint_signs: tuple[int | float, ...] = (1, 1, 1, 1, 1, 1, 1, 1),
+        gripper_config: tuple[int, float, float] = (9, 0.0, 0.0),
+        start_joints: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         *,
         freq: int = 200,
         max_buffer_size: int = 30,
@@ -53,7 +53,6 @@ class GelloInterface:
         super().__post_init__()
 
     def pub(self):
-        robot = None
         try:
             robot = DynamixelRobot(
                 joint_ids=list(self.joint_ids),
@@ -69,7 +68,6 @@ class GelloInterface:
             # Main loop
             rate = time.Rate(self.freq)
             not_pub_ready = True
-
             while not self.exit_event.is_set():
                 # get_joint_state returns arm joints + gripper
                 joint_state = robot.get_joint_state()
@@ -82,6 +80,7 @@ class GelloInterface:
                     joint_positions = joint_state.astype(self.dtype)
                     gripper_position = 0.0
 
+                # Store current state in ring buffer
                 data = {
                     "joint_positions": joint_positions,
                     "gripper_position": gripper_position,
@@ -92,6 +91,8 @@ class GelloInterface:
                     not_pub_ready = False
                 rate.precise_sleep()
         except KeyboardInterrupt:
+            pass
+        finally:
             pass
 
     def get_state(self, k=None, out=None):
