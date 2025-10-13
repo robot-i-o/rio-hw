@@ -47,7 +47,7 @@ class Template:
         try:
             # Main loop
             rate = time.Rate(self.freq)
-            self.pub_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 state = {}
                 # Store current state in ring buffer
@@ -56,6 +56,9 @@ class Template:
                     "timestamp": time.now(),
                 }
                 self.ring_buffer.put(data)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass

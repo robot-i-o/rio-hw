@@ -90,17 +90,10 @@ class Spacemouse:
             motion_state_transformed = np.zeros((6,), dtype=self.dtype)
             button_state = np.zeros((self.n_buttons,), dtype=bool)
             timestamp = time.now()
-            # Store initial state in ring buffer
-            data = {
-                "motion_state_transformed": motion_state_transformed,
-                "button_state": button_state,
-                "timestamp": timestamp,
-            }
-            self.ring_buffer.put(data)
 
             # Main loop
             rate = time.Rate(self.freq)
-            self.pub_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 event = spnav.spnav_poll_event()
                 timestamp = time.now()
@@ -120,6 +113,9 @@ class Spacemouse:
                     "timestamp": timestamp,
                 }
                 self.ring_buffer.put(data)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass

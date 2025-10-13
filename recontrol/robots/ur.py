@@ -162,7 +162,7 @@ class UR:
         try:
             # Main loop
             rate = time.Rate(self.freq)
-            self.pub_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 robot_state = {}
                 for key in self.receive_keys:
@@ -174,6 +174,9 @@ class UR:
                     "timestamp": time.now(),
                 }
                 self.ring_buffer.put(data)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass
