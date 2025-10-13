@@ -39,17 +39,16 @@ def poll_spacemouse(sm, t_sample, t_last_mode_change, teleop_mode):
     sm_motion = sm.get_motion_state_transformed()
     sm_b0 = sm.is_button_pressed(0)
     sm_b1 = sm.is_button_pressed(1)
+    delta_arm_pose = sm_motion
+    gripper_pose = None
     if sm_b0 and sm_b1:
         if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
             teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
             t_last_mode_change = t_sample
-    delta_arm_pose = sm_motion
-    if sm_b0:
+    elif sm_b0:
         gripper_pose = 0.0  # close
     elif sm_b1:
         gripper_pose = 1.0  # open
-    else:
-        gripper_pose = None
     return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
 
 
