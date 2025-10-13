@@ -6,7 +6,7 @@ from ._middleware import Node
 from .shared_memory import SharedMemoryQueue, SharedMemoryRingBuffer
 
 
-class ShmServer(Node):
+class ShmfServer(Node):
     def __init__(self, *args, **kwargs):
         self.__post_init__()
 
@@ -20,7 +20,7 @@ class ShmServer(Node):
         pass
 
 
-class ShmClient(mp.Process, Node):
+class ShmfClient(mp.Process, Node):
     def __init__(
         self,
         daemon: bool = True,
