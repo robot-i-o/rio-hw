@@ -5,10 +5,8 @@ import sys
 from collections.abc import Callable
 
 from . import middlewares
-from .middlewares import Node
+from .middlewares import SERVERLESS_MW, Node
 from .serializers import CloudpickleSerializer
-
-SERVERLESS_MW = ("Shm", "Thread")
 
 
 def __factory__(role, mw, node_module, node_name):
