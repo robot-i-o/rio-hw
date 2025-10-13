@@ -2,6 +2,7 @@ import multiprocessing as mp
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 
+import numpy as np
 import scipy.spatial.transform as st
 import tyro
 
@@ -52,6 +53,73 @@ def poll_spacemouse(sm, t_sample, t_last_mode_change, teleop_mode):
     return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
 
 
+def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
+    """
+    Controls:
+    - WASD: XY translation
+    - QE: Z translation
+    - IJKL: XY rotation
+    - UO: Z rotation
+    - 1/2/3: mode
+    - []: gripper open/close
+    """
+    alphanumeric_state = kb.get_state()["alphanumeric_state"]
+    # special_state = kb.get_state()["special_state"]
+    kb_motion = np.zeros((6,), dtype=np.float32)
+    gripper_pose = None
+
+    keys = []
+    for key in alphanumeric_state:
+        if key != 0:
+            keys.append(chr(key))
+
+    for key in keys:
+        # translation
+        if key == "w":
+            kb_motion[0] = 1.0
+        elif key == "s":
+            kb_motion[0] = -1.0
+        elif key == "a":
+            kb_motion[1] = -1.0
+        elif key == "d":
+            kb_motion[1] = 1.0
+        elif key == "q":
+            kb_motion[2] = -1.0
+        elif key == "e":
+            kb_motion[2] = 1.0
+
+        # rotation
+        if key == "i":
+            kb_motion[3] = 1.0
+        elif key == "k":
+            kb_motion[3] = -1.0
+        elif key == "j":
+            kb_motion[4] = 1.0
+        elif key == "l":
+            kb_motion[4] = -1.0
+        elif key == "u":
+            kb_motion[5] = 1.0
+        elif key == "o":
+            kb_motion[5] = -1.0
+
+        # gripper
+        if key == "[":
+            gripper_pose = 0.0
+        elif key == "]":
+            gripper_pose = 1.0
+
+        # teleop mode
+        if key == "1":
+            teleop_mode = 0
+        elif key == "2":
+            teleop_mode = 1
+        elif key == "3":
+            teleop_mode = 2
+
+    delta_arm_pose = kb_motion
+    return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
+
+
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from recontrol import time
 
@@ -77,6 +145,8 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
             # get teleop command
             if args.teleop == "Spacemouse":
                 polled = poll_spacemouse(teleop, t_sample, t_last_mode_change, teleop_mode)
+            elif args.teleop == "Keyboard":
+                polled = poll_keyboard(teleop, t_sample, t_last_mode_change, teleop_mode)
             else:
                 raise RuntimeError(args.teleop)
             delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode = polled
