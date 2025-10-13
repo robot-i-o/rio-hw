@@ -47,7 +47,7 @@ class ShmfClient(mp.Process, Node):
     def __post_init__(self):
         ctx = mp.get_start_method()
         if ctx not in ("fork",):
-            raise RuntimeError("Shm requires 'fork' start method for multiprocessing.")
+            raise RuntimeError("Shmf requires 'fork' start method for multiprocessing.")
 
         host, port = self.shm_addr.split(":")
         self.smm = SharedMemoryManager(address=(host, int(port)), authkey=b"abc")
