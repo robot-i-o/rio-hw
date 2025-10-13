@@ -83,8 +83,10 @@ anydesk --get-id
 anydesk --get-status
 # for "ERROR: display_server_not_supported", see https://askubuntu.com/a/1148504
 
-# open a terminal after signing in to anydesk window
+# restart display manager
 sudo systemctl restart gdm3
+
+# open a terminal after signing in to anydesk window
 sudo xhost +local:
 sudo su $USER
 tmux new -s anydesk
