@@ -3,6 +3,7 @@ from typing import Any, Protocol
 
 
 class Node(Protocol):
+    __nodename__: str
     __api__: list[str]
     __pub__: bool
     __req__: bool

@@ -48,6 +48,7 @@ def Factory(role, mw, _Node):
         raise ValueError(role)
     # custom attributes
     attrs = {k: getattr(_Node, k) for k in ("__api__", "__pub__", "__req__")}
+    attrs["__nodename__"] = node_name
     attrs["__factory_args__"] = (role, mw, node_module, node_name)
     attrs["__reduce__"] = __factory_reduce__
 
