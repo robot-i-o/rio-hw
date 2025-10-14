@@ -1,0 +1,293 @@
+import json
+import os
+import queue
+from enum import Enum, auto
+
+import cv2
+import numpy as np
+from threadpoolctl import threadpool_limits
+
+from .. import time
+from ..middleware import ClientFactory, ServerFactory
+from ..request import Request
+
+try:
+    import pyrealsense2 as rs
+except ImportError:
+    rs = None
+
+
+MAX_PATH_LENGTH = os.pathconf("/", "PC_PATH_MAX")
+
+
+def get_connected_cameras():
+    serials, products = [], []
+    for device in rs.context().devices:
+        if device.get_info(rs.camera_info.name).lower() == "platform camera":
+            continue
+        serial = device.get_info(rs.camera_info.serial_number)
+        product = device.get_info(rs.camera_info.product_line)
+        if product in ("D400", "L500"):
+            serials.append(serial)
+            products.append(product)
+    if len(serials) > 0:
+        # sort serials and products by serials
+        serials, products = zip(*sorted(zip(serials, products, strict=True)), strict=True)
+    return serials, products
+
+
+class CameraModel(Enum):
+    D400 = "D400"
+    L500 = "L500"
+
+
+class RequestType(Enum):
+    SET_COLOR_OPTION = auto()
+    SET_DEPTH_OPTION = auto()
+
+
+class Realsense:
+    __api__ = [
+        "get_state",
+        "get_all_state",
+        "set_exposure",
+        "set_white_balance",
+        "set_contrast",
+        "set_depth_preset",
+        "set_depth_exposure",
+    ]
+    __pub__ = True
+    __req__ = True
+
+    def __init__(
+        self,
+        serial: str,
+        product: str,
+        resolution: tuple[int, int] | None = (720, 1280),
+        resolution_depth: tuple[int, int] | None = None,
+        enable_color: bool = True,
+        enable_depth: bool = False,
+        advanced_mode_config: str | None = None,
+        dtype=np.float32,
+        *,
+        freq: int = 30,
+        max_buffer_size: int | None = 30,
+        **kwargs,
+    ):
+        self.serial = serial
+        self.product = product
+        self.resolution = resolution
+        self.resolution_depth = resolution_depth
+        self.enable_color = enable_color
+        self.enable_depth = enable_depth
+        self.advanced_mode_config = advanced_mode_config
+        self.dtype = dtype
+        super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
+
+    def __post_init__(self):
+        example_request_params = {
+            "option_enum": 0,
+            "option_value": 0.0,
+            "video_path": np.array("a" * MAX_PATH_LENGTH),
+            "recording_start_time": 0.0,
+            "put_start_time": 0.0,
+        }
+
+        example_camera_state = {}
+        example_camera_state["camera_receive_timestamp"] = 0.0
+        example_camera_state["camera_capture_timestamp"] = 0.0
+        if self.enable_color:
+            shape = tuple(self.resolution)
+            example_camera_state["color"] = np.zeros(shape=(*shape, 3), dtype=np.uint8)
+        if self.enable_depth:
+            shape = tuple(self.resolution)  # still use color resolution for depth after alignment
+            # shape = tuple(self.resolution_depth)
+            example_camera_state["depth"] = np.zeros(shape=shape, dtype=np.uint16)
+
+        self.example_request = {
+            "type": next(iter(RequestType)).value,
+            **example_request_params,
+        }
+        self.example_data = {
+            **example_camera_state,
+            "timestamp": time.now(),
+        }
+        self.worker = None
+        self.run = self.pubreq
+        super().__post_init__()
+
+    def pubreq(self):
+        # limit threads
+        threadpool_limits(1)
+        cv2.setNumThreads(1)
+
+        fps = self.freq
+        align = rs.align(rs.stream.color)
+        # Enable the streams from all the intel realsense devices
+        rs_config = rs.config()
+        if self.enable_color:
+            h, w = self.resolution
+            rs_config.enable_stream(rs.stream.color, w, h, rs.format.bgr8, fps)
+        if self.enable_depth:
+            h, w = self.resolution_depth
+            rs_config.enable_stream(rs.stream.depth, w, h, rs.format.z16, fps)
+
+        try:
+            rs_config.enable_device(self.serial)
+
+            # start pipeline
+            pipeline = rs.pipeline()
+            pipeline_profile = pipeline.start(rs_config)
+
+            # report global time
+            # https://github.com/IntelRealSense/librealsense/pull/3909
+            d = pipeline_profile.get_device().first_color_sensor()
+            d.set_option(rs.option.global_time_enabled, 1)
+
+            # setup advanced mode
+            if self.advanced_mode_config is not None:
+                advanced_mode_config = json.load(open(self.advanced_mode_config), "r")
+                json_text = json.dumps(advanced_mode_config)
+                device = pipeline_profile.get_device()
+                advanced_mode = rs.rs400_advanced_mode(device)
+                advanced_mode.load_json(json_text)
+
+            # Main loop
+            rate = time.Rate(self.freq)
+            self.pub_ready_event.set()
+            while not self.exit_event.is_set():
+                # wait for frames to come in
+                frameset = pipeline.wait_for_frames()
+                receive_time = time.now()
+                # align frames to color
+                frameset = align.process(frameset)
+
+                # grab data
+                camera_state = {}
+                camera_state["camera_receive_timestamp"] = receive_time
+                # realsense report in ms
+                camera_state["camera_capture_timestamp"] = frameset.get_timestamp() / 1000
+                if self.enable_color:
+                    color_frame = frameset.get_color_frame()
+                    camera_state["color"] = np.asarray(color_frame.get_data())
+                    t = color_frame.get_timestamp() / 1000
+                    camera_state["camera_capture_timestamp"] = t
+                if self.enable_depth:
+                    camera_state["depth"] = np.asarray(frameset.get_depth_frame().get_data())
+
+                # Store current state in ring buffer
+                data = {
+                    **camera_state,
+                    "timestamp": receive_time,
+                }
+                self.ring_buffer.put(data, wait=False)
+
+                # Fetch request from queue
+                try:
+                    req = self.request_queue.get()
+                    if isinstance(req, dict):
+                        req = Request(RequestType(req.pop("type")), req)
+                except queue.Empty:
+                    req = None
+                if req:
+                    if req.type == RequestType.SET_COLOR_OPTION:
+                        sensor = pipeline_profile.get_device().first_color_sensor()
+                        option = rs.option(req.params.get("option_enum"))
+                        value = float(req.params.get("option_value"))
+                        sensor.set_option(option, value)
+                    elif req.type == RequestType.SET_DEPTH_OPTION:
+                        sensor = pipeline_profile.get_device().first_depth_sensor()
+                        option = rs.option(req.params.get("option_enum"))
+                        value = float(req.params.get("option_value"))
+                        sensor.set_option(option, value)
+                    else:
+                        raise ValueError(req.type)
+                rate.precise_sleep()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            rs_config.disable_all_streams()
+
+    def get_state(self, k=None, out=None):
+        if k is None:
+            return self.ring_buffer.get(out=out)
+        else:
+            return self.ring_buffer.get_last_k(k=k, out=out)
+
+    def get_all_state(self):
+        return self.ring_buffer.get_all()
+
+    def _set_color_option(self, option, value: float):
+        req = {
+            "type": RequestType.SET_COLOR_OPTION.value,
+            "option_enum": option.value,
+            "option_value": value,
+        }
+        self.request_queue.put(req)
+
+    def _set_depth_option(self, option, value: float):
+        req = {
+            "type": RequestType.SET_DEPTH_OPTION.value,
+            "option_enum": option.value,
+            "option_value": value,
+        }
+        self.request_queue.put(req)
+
+    def set_exposure(self, exposure=None, gain=None):
+        """
+        exposure: (1, 10000) 100us unit. (0.1 ms, 1/10000s)
+        gain: (0, 128)
+        """
+        if exposure is None and gain is None:
+            # auto exposure
+            self._set_color_option(rs.option.enable_auto_exposure, 1.0)
+        else:
+            # manual exposure
+            self._set_color_option(rs.option.enable_auto_exposure, 0.0)
+            if exposure is not None:
+                self._set_color_option(rs.option.exposure, exposure)
+            if gain is not None:
+                self._set_color_option(rs.option.gain, gain)
+
+    def set_white_balance(self, white_balance=None):
+        if white_balance is None:
+            self._set_color_option(rs.option.enable_auto_white_balance, 1.0)
+        else:
+            self._set_color_option(rs.option.enable_auto_white_balance, 0.0)
+            self._set_color_option(rs.option.white_balance, white_balance)
+
+    def set_contrast(self, contrast=None):
+        if contrast is None:
+            self._set_color_option(rs.option.contrast, 0)
+        else:
+            self._set_color_option(rs.option.contrast, contrast)
+
+    def set_depth_preset(self, preset: str):
+        visual_preset = {
+            "Custom": 0,
+            "Default": 1,
+            "Hand": 2,
+            "High Accuracy": 3,
+            "High Density": 4,
+        }
+        self._set_depth_option(rs.option.visual_preset, visual_preset[preset])
+
+    def set_depth_exposure(self, exposure=None, gain=None):
+        if exposure is None and gain is None:
+            # auto exposure
+            self._set_depth_option(rs.option.enable_auto_exposure, 1.0)
+        else:
+            # manual exposure
+            self._set_depth_option(rs.option.enable_auto_exposure, 0.0)
+            if exposure is not None:
+                self._set_depth_option(rs.option.exposure, exposure)
+            if gain is not None:
+                self._set_depth_option(rs.option.gain, gain)
+
+
+def RealsenseServer(mw, *args, **kwargs):
+    return ServerFactory(mw, Realsense, *args, **kwargs)
+
+
+def RealsenseClient(mw, *args, **kwargs):
+    return ClientFactory(mw, Realsense, *args, **kwargs)

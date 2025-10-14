@@ -19,6 +19,7 @@ dependencies = [
     "numpy>=2.0",
     "opencv-python",
     "scipy",
+    "threadpoolctl",  # thread limiting
     "tyro",  # command-line interface
     "zarr",  # data storage
 ]

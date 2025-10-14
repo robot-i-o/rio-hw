@@ -14,7 +14,7 @@ class RingBuffer(Generic[T]):
         self.write_lock = RLock()
         self.read_lock = RLock()
 
-    def put(self, item: T) -> None:
+    def put(self, item: T, wait: bool = True) -> None:
         """Write item to buffer with minimal locking"""
         with self.write_lock:
             self.buffer.append(item)
