@@ -82,8 +82,6 @@ class ZenohServer(th.Thread, Node):
 
             with zenoh.open(config) as session:
                 queryables = make_queryables(session)  # rpc style
-                if self.has_req and self.req_ready_event is not None:
-                    self.req_ready_event.set()
                 self.exit_event.wait()
                 for q in queryables.values():  # shutdown queryables
                     q.undeclare()
