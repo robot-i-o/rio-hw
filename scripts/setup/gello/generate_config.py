@@ -40,10 +40,7 @@ class Args:
     """CAN channel for YAM robot communication."""
 
     def __post_init__(self):
-        assert len(self.joint_signs) == len(self.start_joints), (
-            f"Number of joint_signs ({len(self.joint_signs)}) must equal number of start_joints ({len(self.start_joints)})"
-        )
-
+        assert len(self.joint_signs) == len(self.start_joints)
         for idx, j in enumerate(self.joint_signs):
             assert j == -1 or j == 1, f"Joint idx: {idx} should be -1 or 1, but got {j}."
 
@@ -139,18 +136,15 @@ def update_config_with_offsets(
     def to_flow_list(data, preserve_ints=False):
         """Convert data to FlowStyleList with proper type conversion."""
         if preserve_ints:
-            return FlowStyleList(
-                [
-                    (
-                        int(x)
-                        if isinstance(x, int | float | np.number) and x == int(x)
-                        else float(x)
-                        if isinstance(x, int | float | np.number)
-                        else x
-                    )
-                    for x in data
-                ]
-            )
+            flow_list = []
+            for x in data:
+                if isinstance(x, int | float | np.number) and x == int(x):
+                    flow_list.append(int(x))
+                elif isinstance(x, int | float | np.number):
+                    flow_list.append(float(x))
+                else:
+                    flow_list.append(x)
+            return FlowStyleList(flow_list)
         return FlowStyleList([float(x) if isinstance(x, int | float | np.number) else x for x in data])
 
     config = copy.deepcopy(template_config)
@@ -159,26 +153,27 @@ def update_config_with_offsets(
     # Update basic config
     config["agent"]["port"] = port
 
-    joint_ids = list(range(1, args.num_robot_joints + 1))
-    dynamixel_config["joint_ids"] = to_flow_list(joint_ids, preserve_ints=True)
-
-    # Update joint_signs from args
-    dynamixel_config["joint_signs"] = to_flow_list(args.joint_signs)
-
     # Update offsets and convert to flow style
     dynamixel_config["joint_offsets"] = to_flow_list([round(offset, 5) for offset in joint_offsets])
 
     # Update gripper config if present
-    if gripper_config and args.gripper and "gripper_config" in dynamixel_config:
+    if args.gripper and "gripper_config" in dynamixel_config:
         gripper_vals = [args.num_robot_joints + 1, gripper_config[1], gripper_config[0]]
         dynamixel_config["gripper_config"] = to_flow_list(gripper_vals, preserve_ints=True)
     elif not args.gripper and "gripper_config" in dynamixel_config:
         # Remove gripper config if gripper is disabled
         del dynamixel_config["gripper_config"]
 
+    # Update joints from args
+    # Convert existing lists to flow style
+    joint_ids = list(range(1, args.num_robot_joints + 1))
+    dynamixel_config["joint_ids"] = to_flow_list(joint_ids, preserve_ints=True)
+    dynamixel_config["joint_signs"] = to_flow_list(args.joint_signs)
+
+    # Set gripper start position to open (1.0) if gripper exists
     start_joints = list(args.start_joints)
     if args.gripper:
-        start_joints.append(1.0)  # Gripper starts open
+        start_joints.append(1.0)
     config["agent"]["start_joints"] = to_flow_list(start_joints)
 
     return config
@@ -211,11 +206,6 @@ def main(args: Args) -> None:
 
     # Step 3: Detect offsets
     print("Detecting joint offsets...")
-    print(f"DEBUG: args.num_robot_joints = {args.num_robot_joints}")
-    print(f"DEBUG: args.num_joints = {args.num_joints}")
-    print(f"DEBUG: args.gripper = {args.gripper}")
-    print(f"DEBUG: args.start_joints = {args.start_joints}")
-    print(f"DEBUG: args.joint_signs = {args.joint_signs}")
     try:
         joint_offsets, gripper_config = get_joint_offsets(args, port)
         print("Joint offsets detected successfully!")
