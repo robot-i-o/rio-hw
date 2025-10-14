@@ -61,6 +61,8 @@ Gamepad: [`docs/gamepad.md`](docs/gamepad.md)
 
 Gello: [`docs/gello.md`](docs/gello.md)
 
+Oculus Reader (Quest 2): [`rail-berkeley/oculus_reader/README.md`](https://github.com/rail-berkeley/oculus_reader?tab=readme-ov-file#setup-of-the-adb)
+
 Spacemouse:
 ```bash
 sudo ./scripts/setup/spacemouse.sh
