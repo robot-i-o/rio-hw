@@ -6,7 +6,11 @@ from .thread import ThreadClient, ThreadServer
 from .zenoh import ZenohClient, ZenohServer
 from .zerorpc import ZeroRpcClient, ZeroRpcServer
 
-SERVERLESS_MW = {"Shm", "Shmf", "Thread"}
+SERVERLESS_MW = [
+    "Shm",
+    "Shmf",
+    "Thread",
+]
 
 __all__ = [
     "Portal",
