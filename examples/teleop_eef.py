@@ -156,7 +156,7 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 
             if arm2:
                 max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
-                move_arm(arm, freq, t_cmd_target, teleop_mode, delta_arm_pose, target_pose2, max_pos_speed, max_rot_speed)
+                move_arm(arm2, freq, t_cmd_target, teleop_mode, delta_arm_pose, target_pose2, max_pos_speed, max_rot_speed)
 
             if gripper:
                 move_gripper(gripper, freq, t_cmd_target, teleop_mode, gripper_pose)
