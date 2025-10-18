@@ -21,24 +21,24 @@ MAX_PATH_LENGTH = os.pathconf("/", "PC_PATH_MAX")
 
 
 def get_connected_cameras():
-    serials, products = [], []
+    serials, models = [], []
     for device in rs.context().devices:
         if device.get_info(rs.camera_info.name).lower() == "platform camera":
             continue
         serial = device.get_info(rs.camera_info.serial_number)
-        product = device.get_info(rs.camera_info.product_line)
-        if product in ("D400", "L500"):
+        model = device.get_info(rs.camera_info.model_line)
+        if model in ("D400", "L500"):
             serials.append(serial)
-            products.append(product)
+            models.append(model)
     if len(serials) > 0:
-        # sort serials and products by serials
-        serials, products = zip(*sorted(zip(serials, products, strict=True)), strict=True)
-    return serials, products
+        # sort serials and models by serials
+        serials, models = zip(*sorted(zip(serials, models, strict=True)), strict=True)
+    return serials, models
 
 
 class CameraModel(Enum):
-    D400 = "D400"
-    L500 = "L500"
+    D400 = auto()
+    L500 = auto()
 
 
 class RequestType(Enum):
@@ -62,7 +62,7 @@ class Realsense:
     def __init__(
         self,
         serial: str,
-        product: str,
+        model: str,
         resolution: tuple[int, int] | None = (720, 1280),
         resolution_depth: tuple[int, int] | None = None,
         enable_color: bool = True,
@@ -74,8 +74,9 @@ class Realsense:
         max_buffer_size: int | None = 30,
         **kwargs,
     ):
+        model = CameraModel[model.upper()]
         self.serial = serial
-        self.product = product
+        self.model = model
         self.resolution = resolution
         self.resolution_depth = resolution_depth
         self.enable_color = enable_color

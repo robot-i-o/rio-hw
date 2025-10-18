@@ -11,11 +11,11 @@ from .utils.wsg_binary_driver import WSGBinaryDriver
 
 
 class GripperModel(Enum):
-    WSG50 = "wsg50"
+    WSG50 = auto()
 
 
 class GripperController(Enum):
-    TASK_POS = "task_pos"
+    TASK_POS = auto()
 
 
 class RequestType(Enum):
@@ -47,12 +47,14 @@ class WsgGripper:
         max_queue_size: int = 1024,
         **kwargs,
     ):
+        robot_model = GripperModel[robot_model.upper()]
+        robot_controller = GripperController[robot_controller.upper()]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_ip = robot_ip
         self.robot_port = robot_port
-        self.robot_model = GripperModel(robot_model)
-        self.robot_controller = GripperController(robot_controller)
+        self.robot_model = robot_model
+        self.robot_controller = robot_controller
         self.move_max_speed = move_max_speed
         self.use_meters = use_meters
         self.scale = 1000.0 if self.use_meters else 1.0

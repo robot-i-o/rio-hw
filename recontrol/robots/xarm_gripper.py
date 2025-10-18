@@ -15,15 +15,15 @@ except ImportError:
 
 
 class GripperModel(Enum):
-    LITE6 = "lite6"
-    G1 = "g1"
-    G2 = "g2"
-    ROBOTIQ_2F85 = "robotiq_2f85"
-    ROBOTIQ_2F140 = "robotiq_2f140"
+    LITE6 = auto()
+    G1 = auto()
+    G2 = auto()
+    ROBOTIQ_2F85 = auto()
+    ROBOTIQ_2F140 = auto()
 
 
 class GripperController(Enum):
-    TASK_POS = "task_pos"
+    TASK_POS = auto()
 
 
 class RequestType(Enum):
@@ -53,11 +53,13 @@ class XArmGripper:
         max_queue_size: int = 1024,
         **kwargs,
     ):
+        robot_model = GripperModel[robot_model.upper()]
+        robot_controller = GripperController[robot_controller.upper()]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_ip = robot_ip
-        self.robot_model = GripperModel(robot_model)
-        self.robot_controller = GripperController(robot_controller)
+        self.robot_model = robot_model
+        self.robot_controller = robot_controller
         self.home_to_open = home_to_open
         self.move_max_speed = move_max_speed
         self.dtype = dtype

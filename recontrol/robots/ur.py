@@ -17,20 +17,20 @@ except ImportError:
     RTDEReceiveInterface = None
 
 
+class ArmModel(Enum):
+    UR5E = auto()
+
+
 ArmInfo = {
-    "ur5e": {"num_joints": 6},
+    ArmModel.UR5E: {"num_joints": 6},
 }
 
 
-class ArmModel(Enum):
-    UR5 = "ur5e"
-
-
 class ArmController(Enum):
-    TASK_POS = "task_pos"
-    JOINT_POS = "joint_pos"
-    TASK_VEL = "task_vel"
-    JOINT_VEL = "joint_vel"
+    TASK_POS = auto()
+    JOINT_POS = auto()
+    TASK_VEL = auto()
+    JOINT_VEL = auto()
 
 
 class RequestType(Enum):
@@ -86,6 +86,8 @@ class UR:
         assert 100 <= gain <= 2000
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        robot_model = ArmModel[robot_model.upper()]
+        robot_controller = ArmController[robot_controller.upper()]
         num_joints = ArmInfo[robot_model]["num_joints"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
@@ -102,8 +104,8 @@ class UR:
             joints_init = np.array(joints_init)
             assert joints_init.shape == (num_joints,)
         self.robot_ip = robot_ip
-        self.robot_model = ArmModel(robot_model)
-        self.robot_controller = ArmController(robot_controller)
+        self.robot_model = robot_model
+        self.robot_controller = robot_controller
         self.num_joints = num_joints
         self.lookahead_time = lookahead_time
         self.gain = gain

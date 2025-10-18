@@ -18,26 +18,26 @@ except ImportError:
     XArmAPI = None
 
 
+class ArmModel(Enum):
+    XARM6 = auto()
+    XARM7 = auto()
+    XARM850 = auto()
+    LITE6 = auto()
+
+
 ArmInfo = {
-    "xarm6": {"num_joints": 6},
-    "xarm7": {"num_joints": 7},
-    "xarm850": {"num_joints": 6},
-    "lite6": {"num_joints": 6},
+    ArmModel.XARM6: {"num_joints": 6},
+    ArmModel.XARM7: {"num_joints": 7},
+    ArmModel.XARM850: {"num_joints": 6},
+    ArmModel.LITE6: {"num_joints": 6},
 }
 
 
-class ArmModel(Enum):
-    XARM6 = "xarm6"
-    XARM7 = "xarm7"
-    XARM850 = "xarm850"
-    LITE6 = "lite6"
-
-
 class ArmController(Enum):
-    TASK_POS = "task_pos"
-    JOINT_POS = "joint_pos"
-    TASK_VEL = "task_vel"
-    JOINT_VEL = "joint_vel"
+    TASK_POS = auto()
+    JOINT_POS = auto()
+    TASK_VEL = auto()
+    JOINT_VEL = auto()
 
 
 class RequestType(Enum):
@@ -95,6 +95,8 @@ class XArm:
         assert 0 < freq <= 250
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        robot_model = ArmModel[robot_model.upper()]
+        robot_controller = ArmController[robot_controller.upper()]
         num_joints = ArmInfo[robot_model]["num_joints"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
@@ -111,8 +113,8 @@ class XArm:
             joints_init = np.array(joints_init, dtype=dtype)
             assert joints_init.shape == (num_joints,)
         self.robot_ip = robot_ip
-        self.robot_model = ArmModel(robot_model)
-        self.robot_controller = ArmController(robot_controller)
+        self.robot_model = robot_model
+        self.robot_controller = robot_controller
         self.num_joints = num_joints
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
