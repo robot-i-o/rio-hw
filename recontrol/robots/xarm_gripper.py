@@ -90,7 +90,7 @@ class XArmGripper:
         self.run = self.pubreq
         super().__post_init__()
 
-        self.gripper = XArmGripperInterface(self.robot_ip, self.robot_model, self.home_to_open)
+        self.gripper = XArmGripperDriver(self.robot_ip, self.robot_model, self.home_to_open)
 
     def pubreq(self):
         try:
@@ -183,7 +183,7 @@ class XArmGripper:
         self.request_queue.put(req)
 
 
-class XArmGripperInterface:
+class XArmGripperDriver:
     def __init__(self, robot_ip, robot_model, home_to_open: bool = True):
         self.robot_ip = robot_ip
         self.robot_model = robot_model
