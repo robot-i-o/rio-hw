@@ -26,6 +26,9 @@ class Rate:
         self.period = 1.0 / freq if freq > 0 else 0
         self.start_time = now()
 
+    def real_freq(self):
+        return 1.0 / (now() - self.start_time)
+
     def sleep(self):
         dt = self.start_time + self.period - now()
         if dt > 0:
