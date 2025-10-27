@@ -122,8 +122,8 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from recontrol import time
 
-    target_pose = arm.get_state()["TargetTCPPose"] if arm else None
-    target_pose2 = arm2.get_state()["TargetTCPPose"] if arm2 else None
+    target_pose = arm.get_state()["target_tcp_pose"] if arm else None
+    target_pose2 = arm2.get_state()["target_tcp_pose"] if arm2 else None
     teleop_mode = 0
     t_last_mode_change = time.now()
 

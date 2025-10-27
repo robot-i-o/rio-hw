@@ -67,7 +67,7 @@ class XArmGripper:
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
+            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pos": np.zeros((1,), dtype=self.dtype)}),
         }[self.robot_controller][1]
         example_request_params = {
             **example_request_params,
@@ -142,7 +142,7 @@ class XArmGripper:
                     req = None
                 if req:
                     if req.type == RequestType.MOVEL:
-                        target_pos = np.array(req.params["target_pose"], dtype=self.dtype)[0]
+                        target_pos = np.array(req.params["target_pos"], dtype=self.dtype)[0]
                         target_time = float(req.params["target_time"])
                         curr_time = t_now + dt
                         pose_interp = pose_interp.schedule_waypoint(
@@ -171,13 +171,13 @@ class XArmGripper:
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_pose, target_time):
-        target_pose = np.array(target_pose, dtype=self.dtype)
-        assert target_pose.shape == (1,)
+    def moveL(self, target_pos, target_time):
+        target_pos = np.array(target_pos, dtype=self.dtype)
+        assert target_pos.shape == (1,)
         assert target_time > time.now()
         req = {
             "type": RequestType.MOVEL.value,
-            "target_pose": target_pose,
+            "target_pos": target_pos,
             "target_time": target_time,
         }
         self.request_queue.put(req)

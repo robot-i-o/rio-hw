@@ -45,7 +45,7 @@ class GelloInterface:
     def __post_init__(self):
         self.example_request = None
         self.example_data = {
-            "joint_positions": np.zeros(len(self.joint_ids), dtype=self.dtype),
+            "jointq": np.zeros(len(self.joint_ids), dtype=self.dtype),
             "gripper_position": 0.0,
         }
         self.worker = None
@@ -74,15 +74,15 @@ class GelloInterface:
 
                 # Split into joint positions and gripper position
                 if self.gripper_config is not None:
-                    joint_positions = joint_state[:-1].astype(self.dtype)
+                    jointq = joint_state[:-1].astype(self.dtype)
                     gripper_position = float(joint_state[-1])
                 else:
-                    joint_positions = joint_state.astype(self.dtype)
+                    jointq = joint_state.astype(self.dtype)
                     gripper_position = 0.0
 
                 # Store current state in ring buffer
                 data = {
-                    "joint_positions": joint_positions,
+                    "jointq": jointq,
                     "gripper_position": gripper_position,
                 }
                 self.ring_buffer.put(data)

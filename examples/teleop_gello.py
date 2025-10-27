@@ -60,14 +60,14 @@ def check_gello_alignment(gello_joints, target_joints, max_joint_delta=0.8):
 def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
     gello = teleop
     gello2 = teleop2
-    target_jointq = arm.get_state()["ActualQ"] if arm else None
-    target2_jointq = arm2.get_state()["ActualQ"] if arm2 else None
+    target_jointq = arm.get_state()["actual_jointq"] if arm else None
+    target2_jointq = arm2.get_state()["actual_jointq"] if arm2 else None
 
     print("Checking Gello alignment...")
-    gello_jointq = gello.get_state()["joint_positions"]
+    gello_jointq = gello.get_state()["jointq"]
     check_gello_alignment(gello_jointq, target_jointq)
     if arm2:
-        gello2_jointq = gello2.get_state()["joint_positions"] if gello2 else gello_jointq
+        gello2_jointq = gello2.get_state()["jointq"] if gello2 else gello_jointq
         check_gello_alignment(gello2_jointq, target2_jointq)
 
     input("Press Enter to start")

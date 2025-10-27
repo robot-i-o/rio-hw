@@ -183,10 +183,10 @@ class XArm:
 
                 robot_state = XArmSocket.bytes_to_state(data)
                 robot_state = {k: np.array(v, dtype=self.dtype) for k, v in robot_state.items()}
-                robot_state["TargetTCPPose"][:3] *= 0.001  # convert mm to m
-                robot_state["ActualTCPPose"][:3] *= 0.001  # convert mm to m
-                robot_state["TargetTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
-                robot_state["ActualTCPSpeed"][:3] *= 0.001  # convert mm/s to m/s
+                robot_state["target_tcp_pose"][:3] *= 0.001  # convert mm to m
+                robot_state["actual_tcp_pose"][:3] *= 0.001  # convert mm to m
+                robot_state["target_tcp_speed"][:3] *= 0.001  # convert mm/s to m/s
+                robot_state["actual_tcp_speed"][:3] *= 0.001  # convert mm/s to m/s
 
                 # Store current state in ring buffer
                 data = {
@@ -395,14 +395,14 @@ class XArmSocket:
     # https://docs.supportarticle.ufactory.cc/support_articles/developer/firmware/how-to-get-the-real-time-data-via-tcp-30000-port.html
     # Frequency: 250HZ (200HZ with FT sensor)
     P30000 = {
-        "ActualTCPPose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
-        "ActualTCPSpeed": [497, 520],  # mm/s & rad/s
-        "ActualQ": [117, 144],  # rad
-        "ActualQd": [449, 472],  # rad/s
-        "TargetTCPPose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
-        "TargetTCPSpeed": [449, 472],  # mm/s & rad/s
-        "TargetQ": [33, 60],  # rad
-        "TargetQd": [61, 88],  # rad/s
+        "actual_tcp_pose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
+        "actual_tcp_speed": [497, 520],  # mm/s & rad/s
+        "actual_jointq": [117, 144],  # rad
+        "actual_jointqd": [449, 472],  # rad/s
+        "target_tcp_pose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
+        "target_tcp_speed": [449, 472],  # mm/s & rad/s
+        "target_jointq": [33, 60],  # rad
+        "target_jointqd": [61, 88],  # rad/s
     }
     PORT = 30000
     FREQ = 250

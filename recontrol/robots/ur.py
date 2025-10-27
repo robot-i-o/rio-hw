@@ -130,20 +130,20 @@ class UR:
         }
 
         rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
-        receive_keys = [
-            "ActualTCPPose",
-            "ActualTCPSpeed",
-            "ActualQ",
-            "ActualQd",
-            "TargetTCPPose",
-            "TargetTCPSpeed",
-            "TargetQ",
-            "TargetQd",
-        ]
+        receive_fn_map = {
+            "actual_tcp_pose": "ActualTCPPose",
+            "actual_tcp_speed": "ActualTCPSpeed",
+            "actual_jointq": "ActualQ",
+            "actual_jointqd": "ActualQd",
+            "target_tcp_pose": "TargetTCPPose",
+            "target_tcp_speed": "TargetTCPSpeed",
+            "target_jointq": "TargetQ",
+            "target_jointqd": "TargetQd",
+        }
         example_robot_state = {}
-        for key in receive_keys:
-            example_robot_state[key] = np.array(getattr(rtde_r, f"get{key}")(), dtype=self.dtype)
-        self.receive_keys = receive_keys
+        for k, v in receive_fn_map.items():
+            example_robot_state[k] = np.array(getattr(rtde_r, f"get{v}")(), dtype=self.dtype)
+        self.receive_fn_map = receive_fn_map
 
         self.example_request = {
             "type": next(iter(RequestType)).value,
@@ -167,8 +167,8 @@ class UR:
             not_pub_ready = True
             while not self.exit_event.is_set():
                 robot_state = {}
-                for key in self.receive_keys:
-                    robot_state[key] = np.array(getattr(self.rtde_r, "get" + key)(), dtype=self.dtype)
+                for k, v in self.receive_fn_map.items():
+                    robot_state[k] = np.array(getattr(self.rtde_r, f"get{v}")(), dtype=self.dtype)
 
                 # Store current state in ring buffer
                 data = {
