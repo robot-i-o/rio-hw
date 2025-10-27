@@ -31,7 +31,7 @@ def move_arm(arm, freq, t_cmd_target, teleop_mode, delta_pose, target_pose, max_
     return target_pose
 
 
-def move_gripper(gripper, freq, t_cmd_target, teleop_mode, pos, target_pos):
+def move_gripper(gripper, freq, t_cmd_target, pos, target_pos):
     if pos is not None:
         target_pos = pos
     gripper.moveL([target_pos], t_cmd_target)
@@ -171,11 +171,11 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 
             if gripper:
                 _t_cmd_target = t_cmd_target + args.gripper_latency
-                gripper_target_pos = move_gripper(gripper, freq, _t_cmd_target, teleop_mode, gripper_pos, gripper_target_pos)
+                gripper_target_pos = move_gripper(gripper, freq, _t_cmd_target, gripper_pos, gripper_target_pos)
 
             if gripper2:
                 _t_cmd_target = t_cmd_target + args.gripper_latency
-                gripper2_target_pos = move_gripper(gripper2, freq, _t_cmd_target, teleop_mode, gripper_pos, gripper2_target_pos)
+                gripper2_target_pos = move_gripper(gripper2, freq, _t_cmd_target, gripper_pos, gripper2_target_pos)
 
             # logging
             if it % freq == 0:

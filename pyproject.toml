@@ -56,6 +56,11 @@ middlewares = [
     "pyzmq",  # zmq
 ]
 robots = [
+    # "deoxys; sys_platform != 'darwin'",  # franka
+    # "franky-control; sys_platform != 'darwin'",  # franka
+    # "panda_py; sys_platform != 'darwin'",  # franka
+    # "polymetis; sys_platform != 'darwin'",  # franka
+    # "pylibfranka; sys_platform != 'darwin'",  # franka
     "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk==1.17.0",  # xarm
 ]

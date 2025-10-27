@@ -45,6 +45,7 @@ systemctl status spacenavd
 
 ### Robots
 Arms:
+  - [`docs/franka.md`](docs/franka.md)
   - [`docs/ur.md`](docs/ur.md)
   - [`docs/xarm.md`](docs/xarm.md)
 

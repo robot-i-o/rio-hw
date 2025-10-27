@@ -45,6 +45,9 @@ sudo tee -a /etc/security/limits.conf >/dev/null <<'EOF'
 @realtime hard memlock 102400
 EOF
 
+# Make sure Performance mode is enabled
+cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+
 # Reboot to load the new RT kernel
 sudo reboot
 ```
@@ -54,6 +57,8 @@ sudo reboot
 ```bash
 # Verify you're actually on an RT kernel
 uname -a
+# should show 1
+cat /sys/kernel/realtime
 
 # Check NVIDIA modules are present/loaded
 nvidia-smi || true
@@ -65,6 +70,10 @@ sudo journalctl -k -b | grep -i -E "nvidia|dkms|module"
 # Confirm PREEMPT_RT config
 grep PREEMPT_RT /boot/config-$(uname -r) || true
 ```
+
+### 3) Additional setup for NUC
+
+See "Step 4: Set up CPU monitoring utilies." from [`deoxys/System Prerequisite`](https://zhuyifengzju.github.io/deoxys_docs/html/installation/system_prerequisite.html).
 
 ### Anydesk
 
