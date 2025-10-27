@@ -37,7 +37,7 @@ class RequestType(Enum):
     MOVEL = auto()
 
 
-class UR:
+class Ur:
     __api__ = [
         "get_state",
         "get_all_state",
@@ -286,9 +286,9 @@ class UR:
         self.request_queue.put(req)
 
 
-def URServer(mw, *args, **kwargs):
-    return ServerFactory(mw, UR, *args, **kwargs)
+def UrServer(mw, *args, **kwargs):
+    return ServerFactory(mw, Ur, *args, **kwargs)
 
 
-def URClient(mw, *args, **kwargs):
-    return ClientFactory(mw, UR, *args, **kwargs)
+def UrClient(mw, *args, **kwargs):
+    return ClientFactory(mw, Ur, *args, **kwargs)

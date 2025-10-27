@@ -30,7 +30,7 @@ class RequestType(Enum):
     MOVEL = auto()
 
 
-class XArmGripper:
+class XarmGripper:
     __api__ = [
         "get_state",
         "get_all_state",
@@ -90,7 +90,7 @@ class XArmGripper:
         self.run = self.pubreq
         super().__post_init__()
 
-        self.gripper = XArmGripperDriver(self.robot_ip, self.robot_model, self.home_to_open)
+        self.gripper = XarmGripperDriver(self.robot_ip, self.robot_model, self.home_to_open)
 
     def pubreq(self):
         try:
@@ -184,7 +184,7 @@ class XArmGripper:
         self.request_queue.put(req)
 
 
-class XArmGripperDriver:
+class XarmGripperDriver:
     def __init__(self, robot_ip, robot_model, home_to_open: bool = True):
         self.robot_ip = robot_ip
         self.robot_model = robot_model
@@ -285,9 +285,9 @@ class XArmGripperDriver:
             raise ValueError(self.robot_model)
 
 
-def XArmGripperServer(mw, *args, **kwargs):
-    return ServerFactory(mw, XArmGripper, *args, **kwargs)
+def XarmGripperServer(mw, *args, **kwargs):
+    return ServerFactory(mw, XarmGripper, *args, **kwargs)
 
 
-def XArmGripperClient(mw, *args, **kwargs):
-    return ClientFactory(mw, XArmGripper, *args, **kwargs)
+def XarmGripperClient(mw, *args, **kwargs):
+    return ClientFactory(mw, XarmGripper, *args, **kwargs)

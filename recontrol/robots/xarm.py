@@ -47,7 +47,7 @@ class RequestType(Enum):
     SPEEDJ = auto()
 
 
-class XArm:
+class Xarm:
     __api__ = [
         "get_state",
         "get_all_state",
@@ -141,7 +141,7 @@ class XArm:
         }
 
         dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
-        example_robot_state = XArmSocket.bytes_to_state(dummy_data)
+        example_robot_state = XarmSocket.bytes_to_state(dummy_data)
         example_robot_state = {k: np.array(v, dtype=self.dtype) for k, v in example_robot_state.items()}
 
         self.example_request = {
@@ -164,15 +164,15 @@ class XArm:
         sock.setblocking(True)
         sock.settimeout(1)
         try:
-            sock.connect((self.robot_ip, XArmSocket.PORT))
+            sock.connect((self.robot_ip, XarmSocket.PORT))
 
             buffer = sock.recv(4)
             while len(buffer) < 4:
                 buffer += sock.recv(4 - len(buffer))
-            size = XArmSocket.bytes_to_u32(buffer[:4])
+            size = XarmSocket.bytes_to_u32(buffer[:4])
 
             # Main loop
-            rate = time.Rate(XArmSocket.FREQ)
+            rate = time.Rate(XarmSocket.FREQ)
             not_pub_ready = True
             while not self.exit_event.is_set():
                 buffer += sock.recv(size - len(buffer))
@@ -181,7 +181,7 @@ class XArm:
                 data = buffer[:size]
                 buffer = buffer[size:]
 
-                robot_state = XArmSocket.bytes_to_state(data)
+                robot_state = XarmSocket.bytes_to_state(data)
                 robot_state = {k: np.array(v, dtype=self.dtype) for k, v in robot_state.items()}
                 robot_state["target_tcp_pose"][:3] *= 0.001  # convert mm to m
                 robot_state["actual_tcp_pose"][:3] *= 0.001  # convert mm to m
@@ -392,7 +392,7 @@ class XArm:
         self.request_queue.put(req)
 
 
-class XArmSocket:
+class XarmSocket:
     # https://docs.supportarticle.ufactory.cc/support_articles/developer/firmware/how-to-get-the-real-time-data-via-tcp-30000-port.html
     # Frequency: 250HZ (200HZ with FT sensor)
     P30000 = {
@@ -417,7 +417,7 @@ class XArmSocket:
         ret = []
         count = n if n > 0 else len(bytes_data) // 4
         for i in range(count):
-            ret.append(XArmSocket.bytes_to_fp32(bytes_data[i * 4 : i * 4 + 4], is_big_endian))
+            ret.append(XarmSocket.bytes_to_fp32(bytes_data[i * 4 : i * 4 + 4], is_big_endian))
         return ret
 
     @staticmethod
@@ -445,14 +445,14 @@ class XArmSocket:
     @staticmethod
     def bytes_to_state(data):
         state = {}
-        for key, (start, end) in XArmSocket.P30000.items():
-            state[key] = XArmSocket.bytes_to_fp32_list(data[start - 1 : end])
+        for key, (start, end) in XarmSocket.P30000.items():
+            state[key] = XarmSocket.bytes_to_fp32_list(data[start - 1 : end])
         return state
 
 
-def XArmServer(mw, *args, **kwargs):
-    return ServerFactory(mw, XArm, *args, **kwargs)
+def XarmServer(mw, *args, **kwargs):
+    return ServerFactory(mw, Xarm, *args, **kwargs)
 
 
-def XArmClient(mw, *args, **kwargs):
-    return ClientFactory(mw, XArm, *args, **kwargs)
+def XarmClient(mw, *args, **kwargs):
+    return ClientFactory(mw, Xarm, *args, **kwargs)

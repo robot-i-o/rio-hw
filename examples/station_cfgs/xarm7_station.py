@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class XArm7Station:
+class Xarm7Station:
     @dataclass
     class ArmCfg:
         robot_ip: str = "192.168.1.111"
@@ -17,8 +17,8 @@ class XArm7Station:
         addr: str = "127.0.0.1:5120"
         robot_model: str = "g1"
 
-    arm: str | None = "XArm"
-    arm_cfg: ArmCfg = field(default_factory=lambda: XArm7Station.ArmCfg(robot_ip="192.168.1.228"))
+    arm: str | None = "Xarm"
+    arm_cfg: ArmCfg = field(default_factory=lambda: Xarm7Station.ArmCfg(robot_ip="192.168.1.228"))
 
-    gripper: str | None = "XArmGripper"
-    gripper_cfg: GripperCfg = field(default_factory=lambda: XArm7Station.GripperCfg(robot_ip="192.168.1.228"))
+    gripper: str | None = "XarmGripper"
+    gripper_cfg: GripperCfg = field(default_factory=lambda: Xarm7Station.GripperCfg(robot_ip="192.168.1.228"))

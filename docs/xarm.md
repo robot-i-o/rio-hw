@@ -1,6 +1,6 @@
-# XArm
+# xArm
 
-Tested: XArm 7/850 and Lite6.
+Tested: xArm 7/850 and Lite6.
 
 Reference: [UFactory docs](https://docs.ufactory.cc/).
 

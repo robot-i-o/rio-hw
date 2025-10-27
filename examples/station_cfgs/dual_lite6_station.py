@@ -17,7 +17,7 @@ class DualLite6Station:
         addr: str = "127.0.0.1:5020"
         robot_model: str = "lite6"
 
-    arm: str | None = "XArm"
+    arm: str | None = "Xarm"
     arm_cfg: ArmCfg = field(
         default_factory=lambda: DualLite6Station.ArmCfg(
             robot_ip="192.168.2.176",
@@ -33,7 +33,7 @@ class DualLite6Station:
         )
     )
 
-    arm2: str | None = "XArm"
+    arm2: str | None = "Xarm"
     arm2_cfg: ArmCfg = field(
         default_factory=lambda: DualLite6Station.ArmCfg(
             robot_ip="192.168.3.181",

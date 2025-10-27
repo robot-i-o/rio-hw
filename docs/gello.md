@@ -1,6 +1,6 @@
 # GELLO
 
-Tested: GELLO Franka, GELLO XArm7
+Tested: GELLO Franka, GELLO xArm7
 
 Reference: [`gello_software`](https://github.com/wuphilipp/gello_software) and [`gello_mechanical`](https://github.com/wuphilipp/gello_mechanical)
 
@@ -21,7 +21,7 @@ python -m scripts.setup.gello.generate_config
     --joint-signs 1 -1 1 1 1 -1 1 \
     --output-path examples/station_cfgs/data/gello_franka_left.yaml
 
-    # XArm7
+    # xArm7
     --start-joints 0 0 0 1.57 0 1.57 0 \
     --joint-signs 1 -1 1 1 1 1 1 \
     --output-path examples/station_cfgs/data/gello_xarm7_left.yaml
