@@ -68,7 +68,7 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
     alphanumeric_state = kb.get_state()["alphanumeric_state"]
     # special_state = kb.get_state()["special_state"]
     kb_motion = np.zeros((6,), dtype=np.float32)
-    gripper_pos = None
+    pos_gripper = None
 
     keys = []
     for key in alphanumeric_state:
@@ -106,9 +106,9 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
 
         # gripper
         if key == "[":
-            gripper_pos = 0.0
+            pos_gripper = 0.0
         elif key == "]":
-            gripper_pos = 1.0
+            pos_gripper = 1.0
 
         # teleop mode
         if key == "1":
@@ -119,16 +119,16 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
             teleop_mode = 2
 
     delta_tcp_pose = kb_motion
-    return delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode
+    return delta_tcp_pose, pos_gripper, t_last_mode_change, teleop_mode
 
 
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from recontrol import time
 
-    target_tcp_pose = arm.get_state()["target_tcp_pose"] if arm else None
-    target_tcp_pose2 = arm2.get_state()["target_tcp_pose"] if arm2 else None
-    target_gripper_pos = gripper.get_state()["gripper_position"] if gripper else None
-    target_gripper_pos2 = gripper2.get_state()["gripper_position"] if gripper2 else None
+    arm_target_pose = arm.get_state()["actual_tcp_pose"] if arm else None
+    arm2_target_pose = arm2.get_state()["actual_tcp_pose"] if arm2 else None
+    gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
+    gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
     teleop_mode = 0
     t_last_mode_change = time.now()
 
@@ -156,22 +156,26 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
             delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode = polled
 
             if arm:
+                _t_cmd_target = t_cmd_target + args.arm_latency
                 max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
-                target_tcp_pose = move_arm(
-                    arm, freq, t_cmd_target, teleop_mode, delta_tcp_pose, target_tcp_pose, max_pos_speed, max_rot_speed
+                arm_target_pose = move_arm(
+                    arm, freq, _t_cmd_target, teleop_mode, delta_tcp_pose, arm_target_pose, max_pos_speed, max_rot_speed
                 )
 
             if arm2:
+                _t_cmd_target = t_cmd_target + args.arm_latency
                 max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
-                target_tcp_pose2 = move_arm(
-                    arm2, freq, t_cmd_target, teleop_mode, delta_tcp_pose, target_tcp_pose2, max_pos_speed, max_rot_speed
+                arm2_target_pose = move_arm(
+                    arm2, freq, _t_cmd_target, teleop_mode, delta_tcp_pose, arm2_target_pose, max_pos_speed, max_rot_speed
                 )
 
             if gripper:
-                target_gripper_pos = move_gripper(gripper, freq, t_cmd_target, teleop_mode, gripper_pos, target_gripper_pos)
+                _t_cmd_target = t_cmd_target + args.gripper_latency
+                gripper_target_pos = move_gripper(gripper, freq, _t_cmd_target, teleop_mode, gripper_pos, gripper_target_pos)
 
             if gripper2:
-                target_gripper_pos2 = move_gripper(gripper2, freq, t_cmd_target, teleop_mode, gripper_pos, target_gripper_pos2)
+                _t_cmd_target = t_cmd_target + args.gripper_latency
+                gripper2_target_pos = move_gripper(gripper2, freq, _t_cmd_target, teleop_mode, gripper_pos, gripper2_target_pos)
 
             # logging
             if it % freq == 0:
@@ -225,6 +229,9 @@ class Args(StationCfg):
 
     teleop: str = "Spacemouse"  # Gamepad, Iphone, Keyboard, Spacemouse
     teleop_cfg: TeleopCfg = field(default_factory=lambda: Args.TeleopCfg())
+
+    arm_latency: float = 0.0
+    gripper_latency: float = 0.1
 
     mw: str = "Shm"  # middleware
     mp_method: str | None = "fork"

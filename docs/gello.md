@@ -33,4 +33,5 @@ python -m scripts.setup.gello.generate_config
 
 # fix error detecting offsets
 sudo usermod -aG dialout $USER
+sudo chmod -R 755 /dev/serial/by-id/
 ```

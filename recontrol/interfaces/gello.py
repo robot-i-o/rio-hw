@@ -9,7 +9,7 @@ except ImportError:
     DynamixelRobot = None
 
 
-class GelloInterface:
+class Gello:
     __api__ = [
         "get_state",
         "get_all_state",
@@ -22,7 +22,7 @@ class GelloInterface:
         port: str = "/dev/ttyUSB0",
         baudrate: int = 57600,
         joint_ids: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8),
-        joint_offsets: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        joint_offsets: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         joint_signs: tuple[int | float, ...] = (1, 1, 1, 1, 1, 1, 1, 1),
         gripper_config: tuple[int, float, float] = (9, 0.0, 0.0),
         start_joints: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -32,6 +32,7 @@ class GelloInterface:
         dtype=np.float32,
         **kwargs,
     ):
+        assert len(joint_ids) == len(joint_offsets)
         self.port = port
         self.baudrate = baudrate
         self.joint_ids = joint_ids
@@ -106,8 +107,8 @@ class GelloInterface:
 
 
 def GelloServer(mw, *args, **kwargs):
-    return ServerFactory(mw, GelloInterface, *args, **kwargs)
+    return ServerFactory(mw, Gello, *args, **kwargs)
 
 
 def GelloClient(mw, *args, **kwargs):
-    return ClientFactory(mw, GelloInterface, *args, **kwargs)
+    return ClientFactory(mw, Gello, *args, **kwargs)

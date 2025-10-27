@@ -11,7 +11,7 @@ from recontrol import time
 from ._nodes import StationCfg, make_node
 
 
-def move_arm(freq, t_cmd_target, gello_joints, arm, target_joints, max_joint_delta=0.02, deadband=0.0):
+def move_arm(arm, freq, t_cmd_target, gello_joints, target_joints, max_joint_delta=0.02, deadband=0.0):
     command_joints = gello_joints[: len(target_joints)]
     delta = command_joints - target_joints
 
@@ -21,19 +21,14 @@ def move_arm(freq, t_cmd_target, gello_joints, arm, target_joints, max_joint_del
     delta = np.clip(delta, -max_joint_delta, max_joint_delta)
     target_joints[:] = target_joints + delta
     arm.moveJ(target_joints.tolist(), t_cmd_target)
+    return target_joints
 
 
-def move_gripper(t_cmd_target, gello_gripper_pos, gripper, last_time, last_pos, max_delta=0.1, gripper_freq=30):
-    dt = 1.0 / gripper_freq
-    t_now = time.now()
-
-    if t_now - last_time[0] >= dt:
-        delta = np.clip(gello_gripper_pos - last_pos[0], -max_delta, max_delta)
-        target_pos = last_pos[0] + delta
-
-        gripper.moveL([target_pos], t_cmd_target)
-        last_time[0] = t_now
-        last_pos[0] = target_pos
+def move_gripper(gripper, freq, t_cmd_target, pos, target_pos):
+    if pos is not None:
+        target_pos = pos
+    gripper.moveL([target_pos], t_cmd_target)
+    return target_pos
 
 
 def check_gello_alignment(gello_joints, target_joints, max_joint_delta=0.8):
@@ -60,15 +55,18 @@ def check_gello_alignment(gello_joints, target_joints, max_joint_delta=0.8):
 def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
     gello = teleop
     gello2 = teleop2
-    target_jointq = arm.get_state()["actual_jointq"] if arm else None
-    target2_jointq = arm2.get_state()["actual_jointq"] if arm2 else None
+
+    arm_target_jointq = arm.get_state()["actual_jointq"] if arm else None
+    arm2_target_jointq = arm2.get_state()["actual_jointq"] if arm2 else None
+    gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
+    gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
 
     print("Checking Gello alignment...")
     gello_jointq = gello.get_state()["jointq"]
-    check_gello_alignment(gello_jointq, target_jointq)
+    check_gello_alignment(gello_jointq, arm_target_jointq)
     if arm2:
         gello2_jointq = gello2.get_state()["jointq"] if gello2 else gello_jointq
-        check_gello_alignment(gello2_jointq, target2_jointq)
+        check_gello_alignment(gello2_jointq, arm2_target_jointq)
 
     input("Press Enter to start")
     try:
@@ -77,12 +75,6 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
         dt = 1.0 / freq
         command_latency = dt / 2
         t_start = time.now()
-
-        last_gripper_time = [0.0]
-        last_gripper2_time = [0.0]
-        last_gripper_pos = [0.0]
-        last_gripper2_pos = [0.0]
-
         it = 0
         while True:
             t_cycle_end = t_start + (it + 1) * dt
@@ -92,26 +84,30 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
             time.precise_wait(t_sample)
             # get teleop command
             gello_state = gello.get_state()
-            gello_jointq = gello_state["joint_positions"]
+            gello_jointq = gello_state["jointq"]
             gello_gripper_pos = gello_state["gripper_position"]
             if gello2:
                 gello2_state = gello2.get_state()
-                gello2_jointq = gello2_state["joint_positions"]
+                gello2_jointq = gello2_state["jointq"]
                 gello2_gripper_pos = gello2_state["gripper_position"]
 
             if arm:
-                move_arm(freq, t_cmd_target, gello_jointq, arm, target_jointq)
+                _t_cmd_target = t_cmd_target + args.arm_latency
+                arm_target_jointq = move_arm(arm, freq, _t_cmd_target, gello_jointq, arm_target_jointq)
 
             if arm2:
                 _gello_jointq = gello2_jointq if gello2 else gello_jointq
-                move_arm(freq, t_cmd_target, _gello_jointq, arm2, target2_jointq)
+                _t_cmd_target = t_cmd_target + args.arm_latency
+                arm2_target_jointq = move_arm(arm2, freq, _t_cmd_target, _gello_jointq, arm2_target_jointq)
 
             if gripper:
-                move_gripper(time.now() + 0.1, gello_gripper_pos, gripper, last_gripper_time, last_gripper_pos)
+                _t_cmd_target = t_cmd_target + args.gripper_latency
+                gripper_target_pos = move_gripper(gripper, freq, _t_cmd_target, gello_gripper_pos, gripper_target_pos)
 
             if gripper2:
                 _gello_gripper_pos = gello2_gripper_pos if gello2 else gello_gripper_pos
-                move_gripper(time.now() + 0.1, _gello_gripper_pos, gripper2, last_gripper2_time, last_gripper2_pos)
+                _t_cmd_target = t_cmd_target + args.gripper_latency
+                gripper2_target_pos = move_gripper(gripper2, freq, _t_cmd_target, _gello_gripper_pos, gripper2_target_pos)
 
             # logging
             if it % freq == 0:
@@ -120,7 +116,7 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
                     "|",
                     f"gello_jointq: {gello_jointq}",
                     "|",
-                    f"gripper: {gello_gripper_pos:.2f}",
+                    f"gello_gripper_pos: {gello_gripper_pos:.2f}",
                 )
 
             time.precise_wait(t_cycle_end)
@@ -143,9 +139,8 @@ def main(args):
     if getattr(args, "arm2", None):
         arm2_cfg_dict = asdict(args.arm2_cfg)
         arm2_cfg_dict["robot_controller"] = "joint_pos"
-        # Exclude gripper position
         start_joints = args.teleop2_cfg.start_joints if args.teleop2 else args.teleop_cfg.start_joints
-        arm2_cfg_dict["joints_init"] = start_joints[:-1]
+        arm2_cfg_dict["joints_init"] = start_joints[:-1]  # Exclude gripper position
         arm2_server, arm2_client = make_node(args.mw, "robots", args.arm2, arm2_cfg_dict)
     else:
         arm2_server, arm2_client = lambda: None, None
@@ -173,7 +168,7 @@ class GelloCfg:
     port: str = "/dev/ttyUSB0"
     baudrate: int = 57600
     joint_ids: tuple = (1, 2, 3, 4, 5, 6, 7, 8)
-    joint_offsets: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    joint_offsets: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     joint_signs: tuple = (1, 1, 1, 1, 1, 1, 1)
     gripper_config: tuple = (0, 0, 0)
     start_joints: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -189,6 +184,9 @@ class Args(StationCfg):
     teleop2_cfg: GelloCfg = field(default_factory=lambda: GelloCfg())
     teleop2_cfg_yaml: str | None = None
 
+    arm_latency: float = 0.0
+    gripper_latency: float = 0.1
+
     mw: str = "Shm"  # middleware
     mp_method: str | None = "fork"
     freq: int = 200
@@ -199,6 +197,7 @@ class Args(StationCfg):
                 teleop_cfg = yaml.safe_load(f)
             teleop_kwargs = {
                 "port": teleop_cfg["agent"]["port"],
+                "baudrate": teleop_cfg["agent"].get("baudrate", 57600),
                 "joint_ids": tuple(teleop_cfg["agent"]["dynamixel_config"]["joint_ids"]),
                 "joint_offsets": tuple(teleop_cfg["agent"]["dynamixel_config"]["joint_offsets"]),
                 "joint_signs": tuple(teleop_cfg["agent"]["dynamixel_config"]["joint_signs"]),
