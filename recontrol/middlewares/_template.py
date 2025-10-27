@@ -71,14 +71,15 @@ class Template:
             rate = time.Rate(self.freq)
             self.req_ready_event.set()
             while not self.exit_event.is_set():
-                # Fetch request from queue
+                # Fetch requests from queue
                 try:
-                    req = self.request_queue.get()
-                    if isinstance(req, dict):
-                        req = Request(RequestType(req.pop("type")), req)
+                    reqs = self.request_queue.get_all()
+                    if isinstance(reqs, dict):
+                        reqs = [{k: reqs[k][i] for k in reqs.keys()} for i in range(len(reqs["type"]))]
                 except queue.Empty:
-                    req = None
-                if req:
+                    reqs = []
+                for r in reqs:
+                    req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.METHOD:
                         raise NotImplementedError
                     else:

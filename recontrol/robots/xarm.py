@@ -292,14 +292,15 @@ class XArm:
                 # if not (code == 0 and arm.error_code == 0 and arm.connected):
                 #     raise RuntimeError
 
-                # Fetch request from queue
+                # Fetch requests from queue
                 try:
-                    req = self.request_queue.get()
-                    if isinstance(req, dict):
-                        req = Request(RequestType(req.pop("type")), req)
+                    reqs = self.request_queue.get_all()
+                    if isinstance(reqs, dict):
+                        reqs = [{k: reqs[k][i] for k in reqs.keys()} for i in range(len(reqs["type"]))]
                 except queue.Empty:
-                    req = None
-                if req:
+                    reqs = []
+                for r in reqs:
+                    req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
                         target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))

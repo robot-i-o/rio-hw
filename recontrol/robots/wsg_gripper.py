@@ -44,7 +44,7 @@ class WsgGripper:
         *,
         freq: int = 30,
         max_buffer_size: int | None = None,
-        max_queue_size: int = 1024,
+        max_queue_size: int = 128,
         **kwargs,
     ):
         robot_model = GripperModel[robot_model.upper()]
@@ -145,14 +145,15 @@ class WsgGripper:
                     self.pub_ready_event.set()
                     not_pub_ready = False
 
-                # Fetch request from queue
+                # Fetch requests from queue
                 try:
-                    req = self.request_queue.get()
-                    if isinstance(req, dict):
-                        req = Request(RequestType(req.pop("type")), req)
+                    reqs = self.request_queue.get_all()
+                    if isinstance(reqs, dict):
+                        reqs = [{k: reqs[k][i] for k in reqs.keys()} for i in range(len(reqs["type"]))]
                 except queue.Empty:
-                    req = None
-                if req:
+                    reqs = []
+                for r in reqs:
+                    req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
                         target_pos = req.params["target_pos"][0]
                         target_pos = target_pos * self.scale

@@ -1,8 +1,7 @@
-import queue
 import threading as th
 
-from ..ring_buffer import RingBuffer
 from ..serializers import PickleSerializer
+from ..storage import Queue, RingBuffer
 from ._middleware import Node
 from ._serialize import get_fn, wrap_fn_pack, wrap_fn_unpack
 
@@ -44,7 +43,7 @@ class PortalServer(th.Thread, Node):
         self.server_thread = th.Thread(target=run_server, daemon=self.daemon)
 
         self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
-        self.request_queue = queue.Queue(self.max_queue_size) if self.has_req else None
+        self.request_queue = Queue(self.max_queue_size) if self.has_req else None
         self.pub_ready_event = th.Event() if self.has_pub else None
         self.req_ready_event = th.Event() if self.has_req else None
         self.exit_event = th.Event()

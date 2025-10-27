@@ -28,28 +28,31 @@ def move_arm(arm, freq, t_cmd_target, teleop_mode, delta_pose, target_pose, max_
     target_pose[:3] += dpos
     target_pose[3:] = (drot * st.Rotation.from_rotvec(target_pose[3:])).as_rotvec()
     arm.moveL(target_pose.tolist(), t_cmd_target)
+    return target_pose
 
 
-def move_gripper(gripper, freq, t_cmd_target, teleop_mode, target_pose):
-    if target_pose is not None:
-        gripper.moveL([target_pose], t_cmd_target)
+def move_gripper(gripper, freq, t_cmd_target, teleop_mode, pos, target_pos):
+    if pos is not None:
+        target_pos = pos
+    gripper.moveL([target_pos], t_cmd_target)
+    return target_pos
 
 
 def poll_spacemouse(sm, t_sample, t_last_mode_change, teleop_mode):
     sm_motion = sm.get_motion_state_transformed()
     sm_b0 = sm.is_button_pressed(0)
     sm_b1 = sm.is_button_pressed(1)
-    delta_arm_pose = sm_motion
-    gripper_pose = None
+    delta_tcp_pose = sm_motion
+    gripper_pos = None
     if sm_b0 and sm_b1:
         if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
             teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
             t_last_mode_change = t_sample
     elif sm_b0:
-        gripper_pose = 0.0  # close
+        gripper_pos = 0.0  # close
     elif sm_b1:
-        gripper_pose = 1.0  # open
-    return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
+        gripper_pos = 1.0  # open
+    return delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode
 
 
 def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
@@ -65,7 +68,7 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
     alphanumeric_state = kb.get_state()["alphanumeric_state"]
     # special_state = kb.get_state()["special_state"]
     kb_motion = np.zeros((6,), dtype=np.float32)
-    gripper_pose = None
+    gripper_pos = None
 
     keys = []
     for key in alphanumeric_state:
@@ -103,9 +106,9 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
 
         # gripper
         if key == "[":
-            gripper_pose = 0.0
+            gripper_pos = 0.0
         elif key == "]":
-            gripper_pose = 1.0
+            gripper_pos = 1.0
 
         # teleop mode
         if key == "1":
@@ -115,15 +118,17 @@ def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
         elif key == "3":
             teleop_mode = 2
 
-    delta_arm_pose = kb_motion
-    return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
+    delta_tcp_pose = kb_motion
+    return delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode
 
 
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from recontrol import time
 
-    target_pose = arm.get_state()["target_tcp_pose"] if arm else None
-    target_pose2 = arm2.get_state()["target_tcp_pose"] if arm2 else None
+    target_tcp_pose = arm.get_state()["target_tcp_pose"] if arm else None
+    target_tcp_pose2 = arm2.get_state()["target_tcp_pose"] if arm2 else None
+    target_gripper_pos = gripper.get_state()["gripper_position"] if gripper else None
+    target_gripper_pos2 = gripper2.get_state()["gripper_position"] if gripper2 else None
     teleop_mode = 0
     t_last_mode_change = time.now()
 
@@ -148,21 +153,25 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
                 polled = poll_keyboard(teleop, t_sample, t_last_mode_change, teleop_mode)
             else:
                 raise RuntimeError(args.teleop)
-            delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode = polled
+            delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode = polled
 
             if arm:
                 max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
-                move_arm(arm, freq, t_cmd_target, teleop_mode, delta_arm_pose, target_pose, max_pos_speed, max_rot_speed)
+                target_tcp_pose = move_arm(
+                    arm, freq, t_cmd_target, teleop_mode, delta_tcp_pose, target_tcp_pose, max_pos_speed, max_rot_speed
+                )
 
             if arm2:
                 max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
-                move_arm(arm2, freq, t_cmd_target, teleop_mode, delta_arm_pose, target_pose2, max_pos_speed, max_rot_speed)
+                target_tcp_pose2 = move_arm(
+                    arm2, freq, t_cmd_target, teleop_mode, delta_tcp_pose, target_tcp_pose2, max_pos_speed, max_rot_speed
+                )
 
             if gripper:
-                move_gripper(gripper, freq, t_cmd_target, teleop_mode, gripper_pose)
+                target_gripper_pos = move_gripper(gripper, freq, t_cmd_target, teleop_mode, gripper_pos, target_gripper_pos)
 
             if gripper2:
-                move_gripper(gripper2, freq, t_cmd_target, teleop_mode, gripper_pose)
+                target_gripper_pos2 = move_gripper(gripper2, freq, t_cmd_target, teleop_mode, gripper_pos, target_gripper_pos2)
 
             # logging
             if it % freq == 0:
@@ -171,9 +180,9 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
                     "|",
                     f"teleop_mode: {teleop_mode}",
                     "|",
-                    f"delta_arm_pose: {delta_arm_pose}",
+                    f"delta_tcp_pose: {delta_tcp_pose}",
                     "|",
-                    f"gripper_pose: {gripper_pose}",
+                    f"gripper_pos: {gripper_pos}",
                 )
 
             time.precise_wait(t_cycle_end)

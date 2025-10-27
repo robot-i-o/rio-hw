@@ -183,14 +183,15 @@ class Realsense:
                 }
                 self.ring_buffer.put(data, wait=False)
 
-                # Fetch request from queue
+                # Fetch requests from queue
                 try:
-                    req = self.request_queue.get()
-                    if isinstance(req, dict):
-                        req = Request(RequestType(req.pop("type")), req)
+                    reqs = self.request_queue.get_all()
+                    if isinstance(reqs, dict):
+                        reqs = [{k: reqs[k][i] for k in reqs.keys()} for i in range(len(reqs["type"]))]
                 except queue.Empty:
-                    req = None
-                if req:
+                    reqs = []
+                for r in reqs:
+                    req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.SET_COLOR_OPTION:
                         sensor = pipeline_profile.get_device().first_color_sensor()
                         option = rs.option(req.params.get("option_enum"))

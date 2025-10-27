@@ -22,7 +22,7 @@ def pose_distance(start_pose, end_pose):
 
 
 class PoseTrajectoryInterpolator:
-    def __init__(self, times: np.ndarray, poses: np.ndarray):
+    def __init__(self, times: list | np.ndarray, poses: list | np.ndarray):
         assert len(times) >= 1
         assert len(poses) == len(times)
         if not isinstance(times, np.ndarray):

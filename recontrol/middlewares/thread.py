@@ -1,7 +1,6 @@
-import queue
 import threading as th
 
-from ..ring_buffer import RingBuffer
+from ..storage import Queue, RingBuffer
 from ._middleware import Node
 
 
@@ -41,7 +40,7 @@ class ThreadClient(th.Thread, Node):
 
     def __post_init__(self):
         self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
-        self.request_queue = queue.Queue(self.max_queue_size) if self.has_req else None
+        self.request_queue = Queue(self.max_queue_size) if self.has_req else None
         self.pub_ready_event = th.Event() if self.has_pub else None
         self.req_ready_event = th.Event() if self.has_req else None
         self.exit_event = th.Event()
