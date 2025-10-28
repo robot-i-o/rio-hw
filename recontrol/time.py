@@ -38,8 +38,9 @@ class Rate:
             self.start_time = now()
 
     def precise_sleep(self):
-        precise_wait(self.start_time + self.period)
-        self.start_time = now()
+        end_time = self.start_time + self.period
+        precise_wait(end_time)
+        self.start_time = end_time
 
     def __enter__(self):
         self.start_time = now()
