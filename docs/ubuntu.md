@@ -12,6 +12,11 @@ Reference: [Real-time Ubuntu docs](https://documentation.ubuntu.com/real-time/la
 
 ### 1) Install RT kernel
 ```bash
+# Dependencies
+sudo apt update && sudo apt install -y \
+    python3-dev \
+    build-essential
+
 # Attach Ubuntu Pro (free personal plan allows up to 5 machines)
 sudo pro attach <YOUR-TOKEN>
 

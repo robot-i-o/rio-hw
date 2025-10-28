@@ -43,17 +43,16 @@ cameras = [
     "pyrealsense2==2.54.2.5684; sys_platform != 'darwin'",  # realsense
 ]
 interfaces = [
+    "evdev; sys_platform != 'darwin'",  # gamepad
+    "gello @ https://github.com/etaoxing/gello_software/archive/68530625dfbea9fefe8add23fd351ec7c0cb8516.tar.gz",
     "pynput", # keyboard
     "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz", # spacemouse
-    "dynamixel-sdk", # gello
-    "gello @ https://github.com/etaoxing/gello_software/archive/82a7e3addb93de93e1696835c5a7feea8831fe85.tar.gz",
-    "evdev>=1.9.2",
 ]
 middlewares = [
-    "atomics",  # shm
     "portal",
-    "zerorpc",
+    "atomics",  # shm, shmf
     "eclipse-zenoh",  # zenoh
+    "zerorpc",
     "pyzmq",  # zmq
 ]
 robots = [
