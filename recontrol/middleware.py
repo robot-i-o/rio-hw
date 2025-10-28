@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable
 
 from . import middlewares
-from .middlewares import SERVERLESS_MW, Node
+from .middlewares import SERVERLESS_MW
 from .serializers import CloudpickleSerializer
 
 
@@ -75,7 +75,7 @@ def ClientFactory(mw, _Node, *args, **kwargs):
     return Cls(*args, **kwargs)
 
 
-class ServerManager(Node):
+class ServerManager:
     """Helper class to manage multiple servers, each in its own separate process."""
 
     def __init__(self, mw: str, server_fns: list[Callable], start_method: str = "spawn", timeout: float = 5.0):
@@ -132,3 +132,10 @@ class ServerManager(Node):
         self.stop_event.set()
         for proc in self.procs:
             proc.join(self.timeout)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
