@@ -55,6 +55,34 @@ def poll_spacemouse(sm, t_sample, t_last_mode_change, teleop_mode):
     return delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode
 
 
+def poll_gamepad(gp, t_sample, t_last_mode_change, teleop_mode):
+    """
+    Controls:
+    - Left stick: XY translation
+    - Right stick: XY rotation
+    - LT/RT: Z translation/rotation
+    - up_button/B: gripper open/close
+    - Y button: change mode
+    """
+    gp_motion = gp.get_motion_state_transformed()
+
+    gp_x = gp.is_button_pressed(2)
+    gp_a = gp.is_button_pressed(0)
+    gp_b = gp.is_button_pressed(3)
+
+    delta_arm_pose = gp_motion
+    gripper_pose = None
+    if gp_x:
+        if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
+            teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
+            t_last_mode_change = t_sample
+    elif gp_a:
+        gripper_pose = 1.0  # open
+    elif gp_b:
+        gripper_pose = 0.0  # close
+    return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
+
+
 def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
     """
     Controls:
@@ -151,6 +179,8 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
                 polled = poll_spacemouse(teleop, t_sample, t_last_mode_change, teleop_mode)
             elif args.teleop == "Keyboard":
                 polled = poll_keyboard(teleop, t_sample, t_last_mode_change, teleop_mode)
+            elif args.teleop == "Gamepad":
+                polled = poll_gamepad(teleop, t_sample, t_last_mode_change, teleop_mode)
             else:
                 raise RuntimeError(args.teleop)
             delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode = polled
@@ -198,7 +228,10 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 def main(args):
     teleop_server, teleop_client = make_node(args.mw, "interfaces", args.teleop, asdict(args.teleop_cfg))
     arm_server, arm_client = make_node(args.mw, "robots", args.arm, asdict(args.arm_cfg))
-    gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
+    if getattr(args, "gripper", None):
+        gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
+    else:
+        gripper_server, gripper_client = lambda: None, None
     if getattr(args, "arm2", None):
         arm2_server, arm2_client = make_node(args.mw, "robots", args.arm2, asdict(args.arm2_cfg))
     else:

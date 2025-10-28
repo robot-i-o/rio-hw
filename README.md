@@ -34,6 +34,8 @@ realsense-viewer
 
 ### Interfaces
 
+Gamepad: [`docs/gamepad.md`](docs/gamepad.md)
+
 Gello: [`docs/gello.md`](docs/gello.md)
 
 Spacemouse:
