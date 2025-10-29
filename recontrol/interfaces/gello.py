@@ -54,6 +54,7 @@ class Gello(Node):
         self.example_data = {
             "jointq": np.zeros(len(self.joint_ids), dtype=self.dtype),
             "gripper_position": 0.0,
+            "timestamp": time.now(),
         }
         self.worker = None
         self.run = self.pub
@@ -91,6 +92,7 @@ class Gello(Node):
                 data = {
                     "jointq": jointq,
                     "gripper_position": gripper_position,
+                    "timestamp": time.now(),
                 }
                 self.ring_buffer.put(data)
                 if not_pub_ready:
