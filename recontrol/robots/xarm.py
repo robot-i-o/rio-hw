@@ -294,8 +294,8 @@ class Xarm(Node):
                     code = arm.set_servo_angle_j(jointq_command.tolist(), is_radian=True)
                 else:
                     raise ValueError(self.robot_controller)
-                # if not (code == 0 and arm.error_code == 0 and arm.connected):
-                #     raise RuntimeError
+                if not (code == 0 and arm.error_code == 0 and arm.connected):
+                    raise RuntimeError(f"code: {code}, error_code: {arm.error_code}, connected: {arm.connected}")
 
                 # Fetch requests from queue
                 try:
