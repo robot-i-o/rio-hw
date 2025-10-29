@@ -49,7 +49,7 @@ class WsgGripper(Node):
         move_max_speed: float = 200.0,
         use_meters: bool = True,
         home_to_open: bool = True,
-        dtype=np.float64,
+        dtype=np.float32,
         *,
         freq: int = 30,
         max_buffer_size: int | None = None,

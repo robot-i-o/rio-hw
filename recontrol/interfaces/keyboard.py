@@ -27,7 +27,7 @@ class Keyboard(Node):
     def __init__(
         self,
         n_key_rollover: int = 6,
-        dtype=np.float64,
+        dtype=np.float32,
         *,
         freq: int = 100,
         max_buffer_size: int = 30,

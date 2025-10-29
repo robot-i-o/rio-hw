@@ -34,7 +34,7 @@ class Template(Node):
 
     def __init__(
         self,
-        dtype=np.float64,
+        dtype=np.float32,
         *,
         freq: int = 100,
         max_buffer_size: int = 30,

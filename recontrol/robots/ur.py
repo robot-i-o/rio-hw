@@ -66,7 +66,7 @@ class Ur(Node):
         joints_init=None,
         joints_init_speed=1.05,
         soft_real_time=False,
-        dtype=np.float64,
+        dtype=np.float32,
         *,
         freq: int = 125,
         max_buffer_size: int | None = None,

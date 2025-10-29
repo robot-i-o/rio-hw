@@ -78,7 +78,7 @@ class Xarm(Node):
         joints_init_speed=1.05,
         joint_lowpass_alpha=0.1,
         soft_real_time=False,
-        dtype=np.float64,
+        dtype=np.float32,
         *,
         freq: int = 250,
         max_buffer_size: int | None = None,

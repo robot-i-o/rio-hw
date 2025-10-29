@@ -49,7 +49,7 @@ class FrankaGripper(Node):
         move_max_speed: float = 3.0,
         home_to_open: bool = True,
         driver: str = "panda_py",
-        dtype=np.float64,
+        dtype=np.float32,
         *,
         freq: int = 30,
         max_buffer_size: int | None = None,
