@@ -34,6 +34,16 @@ sudo ./scripts/setup/realsense.sh
 realsense-viewer
 ```
 
+Zed: To install ZED SDK for the first time, see [Stereolabs Docs: Install the ZED Python API](https://www.stereolabs.com/docs/development/python/install). 
+```bash
+# (re)install pyzed
+python /usr/local/zed/get_python_api.py
+# verify install
+/usr/local/zed/tools/ZED_Explorer
+# fix Error: "Can't save calibration file.
+sudo chmod -R 777 /usr/local/zed/settings
+```
+
 ### Interfaces
 
 Gamepad: [`docs/gamepad.md`](docs/gamepad.md)

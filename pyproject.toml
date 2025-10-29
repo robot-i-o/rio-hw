@@ -41,6 +41,7 @@ serializers = [
 # --- nodes ---
 cameras = [
     "pyrealsense2==2.54.2.5684; sys_platform != 'darwin'",  # realsense
+    # "pyzed",  # zed
 ]
 interfaces = [
     "evdev; sys_platform != 'darwin'",  # gamepad
