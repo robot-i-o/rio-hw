@@ -55,14 +55,14 @@ See [[Hardware Guide (Google Docs)]](https://docs.google.com/document/d/1_NbHk4z
 
 # Usage
 
-A `Node` dynamically inherits from any given `Middleware` parent, and factory functions automatically create `Server` and `Client` nodes. Each `Node` publishes data and handles requests, in separate loops or in the same loop.
-1. `Node.run()` only publishes data.
-2. `Node.run()` only handles requests.
-3. `Node.run()` both publishes data and handles requests. (NOT RECOMMENDED)
-4. `Node.run()` only handles requests, and `Node.pub()` publishes data in a separate worker.
-5. `Node.run()` only publishes data, and `Node.req()` handles requests in a separate worker.
+A `Node` dynamically inherits from any given `Middleware` to handle automatically message passing, and factory functions produce `Server` and `Client` nodes. Each `Node` publishes data and handles requests, in separate loops or in the same loop.
+1. `Node.pub()` only publishes data.
+2. `Node.req()` only handles requests.
+3. `Node.pubreq()` both publishes data and handles requests. (NOT RECOMMENDED)
+4. `Node.req()` only handles requests, and `Node.pub()` publishes data in a separate worker.
+5. `Node.pub()` only publishes data, and `Node.req()` handles requests in a separate worker.
 
-Users only need to implement "pub/req" behavior in nodes. A "pub" loop should call `ring_buffer.put()` to publish data, and a "req" loop should call `request_queue.get()` to handle requests. A `Server` runs "pub/req" ("publish"/"request") and a `Client` resolves "sub/rep" ("subscribe"/"reply") automatically. See [`_template.py`](recontrol/_template/template.py) for an example outline of a `Node`.
+Users only need to implement "pub/req" behavior in nodes through `Node.pub() / Node.req() / Node.pubreq()`. A "pub" loop should call `ring_buffer.put()` to publish data, and a "req" loop should call `request_queue.get()` to handle requests. A `Server` runs "pub/req" ("publish"/"request") and a `Client` resolves "sub/rep" ("subscribe"/"reply") automatically. See [`template.py`](recontrol/_template/template.py) for an example outline of a `Node`.
 
 ### Conventions
 
