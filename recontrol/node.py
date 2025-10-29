@@ -8,34 +8,81 @@ class Node(Protocol):
     __pub__: bool
     __req__: bool
 
-    example_data: dict
-    example_request: dict
-    ring_buffer: Any
-    request_queue: Any
+    example_data: dict | None
+    example_request: dict | None
     worker: Callable | None
     run: Callable
 
-    def start(self):
-        raise NotImplementedError
+    ring_buffer: Any
+    request_queue: Any
+    pub_ready_event: Any
+    req_ready_event: Any
+    exit_event: Any
+    worker_thread: Any
+    main_process: Any
 
-    def stop(self):
-        raise NotImplementedError
+    freq: int
+    max_buffer_size: int
+    max_queue_size: int
+    timeout: float
+    verbose: bool
 
-    def pub(self):
+    def __init__(
+        self,
+        *,
+        freq: int = 100,
+        max_buffer_size: int = 30,
+        max_queue_size: int = 100,
+        timeout: float = 5.0,
+        verbose: bool = True,
+        **kwargs,
+    ):
+        self.freq = freq
+        self.max_buffer_size = max_buffer_size
+        self.max_queue_size = max_queue_size
+        self.timeout = timeout
+        self.verbose = verbose
+        self.__post_init__()
+
+    def __post_init__(self):
+        # set by node
+        self.example_data = {}
+        self.example_request = {}
+        self.worker = self.req
+        self.run = self.pub
+
+        # set by middleware
+        self.ring_buffer = ... if self.has_pub else None
+        self.request_queue = ... if self.has_req else None
+        self.pub_ready_event = ... if self.has_pub else None
+        self.req_ready_event = ... if self.has_req else None
+        self.exit_event = ...
+        self.worker_thread = ... if self.worker is not None else None
+        self.main_process = ...
+
+    def pubreq(self) -> None:
+        """Optional, discouraged."""
+        ...
+
+    def pub(self) -> None:
         """Optional."""
-        raise NotImplementedError
+        ...
 
-    def req(self):
+    def req(self) -> None:
         """Optional."""
-        raise NotImplementedError
+        ...
 
     @property
-    def has_pub(self):
+    def has_pub(self) -> bool:
         return self.__pub__
 
     @property
-    def has_req(self):
+    def has_req(self) -> bool:
         return self.__req__
+
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
 
     def __enter__(self):
         self.start()
@@ -43,31 +90,3 @@ class Node(Protocol):
 
     def __exit__(self, exc_type, exc_val, exc_traceback):
         self.stop()
-
-
-class Server(Node):
-    def __init__(self, *args, **kwargs):
-        self.__post_init__()
-
-    def __post_init__(self):
-        pass
-
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
-
-
-class Client(Node):
-    def __init__(self, *args, **kwargs):
-        self.__post_init__()
-
-    def __post_init__(self):
-        pass
-
-    def start(self):
-        pass
-
-    def stop(self):
-        pass
