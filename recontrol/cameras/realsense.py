@@ -55,8 +55,10 @@ class Realsense(Node):
     __api__ = [
         "get_state",
         "get_all_state",
+        "set_default_settings",
         "set_exposure",
         "set_white_balance",
+        "set_brightness",
         "set_contrast",
         "set_depth_preset",
         "set_depth_exposure",
@@ -69,7 +71,7 @@ class Realsense(Node):
         serial: str,
         model: str,
         resolution: tuple[int, int] | None = (720, 1280),
-        resolution_depth: tuple[int, int] | None = None,
+        resolution_depth: tuple[int, int] | None = (768, 1024),
         enable_color: bool = True,
         enable_depth: bool = False,
         advanced_mode_config: str | None = None,
@@ -94,9 +96,6 @@ class Realsense(Node):
         example_request_params = {
             "option_enum": 0,
             "option_value": 0.0,
-            "video_path": np.array("a" * MAX_PATH_LENGTH),
-            "recording_start_time": 0.0,
-            "put_start_time": 0.0,
         }
 
         example_camera_state = {}
@@ -240,11 +239,10 @@ class Realsense(Node):
         }
         self.request_queue.put(req)
 
+    def set_default_settings(self):
+        raise NotImplementedError
+
     def set_exposure(self, exposure=None, gain=None):
-        """
-        exposure: (1, 10000) 100us unit. (0.1 ms, 1/10000s)
-        gain: (0, 128)
-        """
         if exposure is None and gain is None:
             # auto exposure
             self._set_color_option(rs.option.enable_auto_exposure, 1.0)
@@ -258,10 +256,18 @@ class Realsense(Node):
 
     def set_white_balance(self, white_balance=None):
         if white_balance is None:
+            # auto white balance
             self._set_color_option(rs.option.enable_auto_white_balance, 1.0)
         else:
+            # manual white balance
             self._set_color_option(rs.option.enable_auto_white_balance, 0.0)
             self._set_color_option(rs.option.white_balance, white_balance)
+
+    def set_brightness(self, brightness=None):
+        if brightness is None:
+            self._set_color_option(rs.option.brightness, 0.0)
+        else:
+            self._set_color_option(rs.option.brightness, brightness)
 
     def set_contrast(self, contrast=None):
         if contrast is None:
@@ -269,7 +275,7 @@ class Realsense(Node):
         else:
             self._set_color_option(rs.option.contrast, contrast)
 
-    def set_depth_preset(self, preset: str):
+    def set_depth_preset(self, preset=None):
         visual_preset = {
             "Custom": 0,
             "Default": 1,
@@ -277,7 +283,10 @@ class Realsense(Node):
             "High Accuracy": 3,
             "High Density": 4,
         }
-        self._set_depth_option(rs.option.visual_preset, visual_preset[preset])
+        if preset is None:
+            self._set_depth_option(rs.option.visual_preset, visual_preset["Default"])
+        else:
+            self._set_depth_option(rs.option.visual_preset, visual_preset[preset])
 
     def set_depth_exposure(self, exposure=None, gain=None):
         if exposure is None and gain is None:
