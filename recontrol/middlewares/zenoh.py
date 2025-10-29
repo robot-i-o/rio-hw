@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING
 
 from ..node import Node
 from ..serializers import PickleSerializer
-from ..storage import Queue, RingBuffer
 from ._serialize import wrap_fn_unpack
+from ._storage import Queue, RingBuffer
 
 try:
     import zenoh
