@@ -1,7 +1,7 @@
 import threading as th
 
+from ..node import Node
 from ..storage import Queue, RingBuffer
-from ._middleware import Node
 
 
 class ThreadServer(Node):

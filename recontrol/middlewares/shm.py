@@ -2,7 +2,7 @@ import multiprocessing as mp
 import threading as th
 from multiprocessing.managers import SharedMemoryManager
 
-from ._middleware import Node
+from ..node import Node
 from .shared_memory import SharedMemoryQueue, SharedMemoryRingBuffer
 
 SMM = {}

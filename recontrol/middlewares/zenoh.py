@@ -1,8 +1,8 @@
 import threading as th
 
+from ..node import Node
 from ..serializers import PickleSerializer
 from ..storage import Queue, RingBuffer
-from ._middleware import Node
 from ._serialize import wrap_fn_unpack
 
 try:
