@@ -1,18 +1,29 @@
 import queue
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..request import Request
+
+try:
+    # import my_package
+    pass
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        my_package = None  # type: ignore
 
 
 class RequestType(Enum):
     METHOD = auto()
 
 
-class Template:
+class Template(Node):
     __api__ = [
         "get_state",
         "get_all_state",

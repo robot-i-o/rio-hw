@@ -1,13 +1,20 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 
 try:
     import evdev
     from evdev import ecodes
-except ImportError:
-    evdev = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        evdev = None  # type: ignore
+        ecodes = None  # type: ignore
 
 
 def find_gamepad():
@@ -27,7 +34,7 @@ def find_gamepad():
     raise RuntimeError("No gamepad detected. Plug one in and check /dev/input permissions (e.g., udev/uaccess).")
 
 
-class Gamepad:
+class Gamepad(Node):
     __api__ = [
         "get_state",
         "get_all_state",

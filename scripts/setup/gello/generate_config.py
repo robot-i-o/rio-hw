@@ -27,10 +27,10 @@ class Args:
     port: str | None = None
     """The port that GELLO is connected to. If not provided, will auto-detect."""
 
-    start_joints: tuple[float, ...] = (0, 0, 0, 0, 0, 0)
+    start_joints: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     """The joint angles that the GELLO should be placed in (in radians). Default is YAM known position."""
 
-    joint_signs: tuple[float, ...] = (1, -1, -1, -1, 1, 1)
+    joint_signs: tuple[int, ...] = (1, -1, -1, -1, 1, 1)
     """The joint signs for YAM arm."""
 
     gripper: bool = True

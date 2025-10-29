@@ -1,25 +1,29 @@
 import pickle
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 try:
     import cloudpickle
-except ImportError:
-    cloudpickle = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        cloudpickle = None  # type: ignore
 
 try:
     import ormsgpack
-except ImportError:
-    ormsgpack = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        ormsgpack = None  # type: ignore
 
 
 class Serializer(Protocol):
     @staticmethod
-    def pack(data) -> bytes:
-        pass
+    def pack(data) -> bytes: ...
 
     @staticmethod
-    def unpack(b_data: bytes):
-        pass
+    def unpack(b_data: bytes): ...
 
 
 class CloudpickleSerializer:

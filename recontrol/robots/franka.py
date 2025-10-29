@@ -1,15 +1,24 @@
 import os
 import queue
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..filters import LowPassFilter
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
-from .utils.franka_driver import FrankaDriver
+
+try:
+    from .utils.franka_driver import FrankaDriver
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        FrankaDriver = None  # type: ignore
 
 
 class ArmModel(Enum):
@@ -43,7 +52,7 @@ class RequestType(Enum):
     OSCL = auto()
 
 
-class Franka:
+class Franka(Node):
     __api__ = [
         "get_state",
         "get_all_state",

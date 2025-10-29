@@ -1,20 +1,25 @@
 import os
 import queue
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
 
 try:
     from rtde_control import RTDEControlInterface
     from rtde_receive import RTDEReceiveInterface
-except ImportError:
-    RTDEControlInterface = None
-    RTDEReceiveInterface = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        RTDEControlInterface = None
+        RTDEReceiveInterface = None
 
 
 class ArmModel(Enum):
@@ -37,7 +42,7 @@ class RequestType(Enum):
     MOVEL = auto()
 
 
-class Ur:
+class Ur(Node):
     __api__ = [
         "get_state",
         "get_all_state",

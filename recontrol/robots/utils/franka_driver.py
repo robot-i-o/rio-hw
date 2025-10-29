@@ -1,34 +1,49 @@
 import time
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 import scipy.spatial.transform as st
 
 try:
-    import deoxys
-except ImportError:
-    deoxys = None
+    import deoxys  # type: ignore
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        deoxys = None  # type: ignore
 try:
-    import franky
-except ImportError:
-    franky = None
+    import franky  # type: ignore
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        franky = None  # type: ignore
 try:
-    import panda_py
-    import panda_py.constants
-    import panda_py.controllers
-except ImportError:
-    panda_py = None
+    import panda_py  # type: ignore
+    import panda_py.constants  # type: ignore
+    import panda_py.controllers  # type: ignore
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        panda_py = None  # type: ignore
 try:
-    import polymetis
-    import torch
-except ImportError:
-    polymetis = None
-    torch = None
+    import polymetis  # type: ignore
+    import torch  # type: ignore
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        polymetis = None  # type: ignore
+        torch = None  # type: ignore
 try:
-    import pylibfranka
-except ImportError:
-    pylibfranka = None
+    import pylibfranka  # type: ignore
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        pylibfranka = None  # type: ignore
 
 
 @dataclass
@@ -53,6 +68,9 @@ class FrankaCfg:
 
 
 class Franka(Protocol):
+    robot_ip: str
+    cfg: FrankaCfg
+
     def __init__(
         self,
         robot_ip: str = "192.168.1.111",
@@ -61,26 +79,19 @@ class Franka(Protocol):
         self.robot_ip = robot_ip
         self.cfg = FrankaCfg(**kwargs)
 
-    def start(self):
-        raise NotImplementedError
+    def start(self): ...
 
-    def stop(self):
-        raise NotImplementedError
+    def stop(self): ...
 
-    def state(self):
-        raise NotImplementedError
+    def state(self): ...
 
-    def moveL(self, pose, wait=False):
-        raise NotImplementedError
+    def moveL(self, pose, wait=False): ...
 
-    def moveJ(self, jointq, wait=False):
-        raise NotImplementedError
+    def moveJ(self, jointq, wait=False): ...
 
-    def impedanceL(self, pose, wait=False):
-        raise NotImplementedError
+    def impedanceL(self, pose, wait=False): ...
 
-    def impedanceJ(self, jointq, wait=False):
-        raise NotImplementedError
+    def impedanceJ(self, jointq, wait=False): ...
 
 
 class FrankaDeoxys:
@@ -114,7 +125,8 @@ class FrankaPandapy:
             [100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
             [100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
         )
-        self.ctrl = None  # ctrl is lazy initialized to make it easier to mix different modes
+        # ctrl is lazy initialized to make it easier to mix different modes
+        self.ctrl: panda_py.controllers.TorqueController | None = None
         self.ctx = None
 
     def _start_ctrl(self, mode: str):

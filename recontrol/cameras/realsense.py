@@ -2,6 +2,7 @@ import json
 import os
 import queue
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -9,12 +10,16 @@ from threadpoolctl import threadpool_limits
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..request import Request
 
 try:
-    import pyrealsense2 as rs
-except ImportError:
-    rs = None
+    import pyrealsense2 as rs  # type: ignore
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        rs = None  # type: ignore
 
 
 MAX_PATH_LENGTH = os.pathconf("/", "PC_PATH_MAX")
@@ -46,7 +51,7 @@ class RequestType(Enum):
     SET_DEPTH_OPTION = auto()
 
 
-class Realsense:
+class Realsense(Node):
     __api__ = [
         "get_state",
         "get_all_state",

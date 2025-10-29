@@ -1,13 +1,22 @@
 import queue
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
-from .utils.franka_driver import FrankaGripperDriver
+
+try:
+    from .utils.franka_driver import FrankaGripperDriver
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        FrankaGripperDriver = None  # type: ignore
 
 
 class GripperModel(Enum):
@@ -23,7 +32,7 @@ class RequestType(Enum):
     MOVEL = auto()
 
 
-class FrankaGripper:
+class FrankaGripper(Node):
     __api__ = [
         "get_state",
         "get_all_state",

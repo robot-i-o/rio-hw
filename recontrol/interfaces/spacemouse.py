@@ -1,14 +1,19 @@
 import subprocess
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 
 try:
     import spnav
-except (ImportError, OSError):
-    spnav = None
+except (ImportError, OSError) as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        spnav = None  # type: ignore
 
 
 def check_spacemouse_service():
@@ -17,7 +22,7 @@ def check_spacemouse_service():
         raise RuntimeError("Spacemouse service is not active. Run `sudo systemctl start spacenavd` to start it.")
 
 
-class Spacemouse:
+class Spacemouse(Node):
     __api__ = [
         "get_state",
         "get_all_state",

@@ -1,17 +1,22 @@
 import threading
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 
 try:
     from pynput import keyboard
-except ImportError:
-    keyboard = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        keyboard = None  # type: ignore
 
 
-class Keyboard:
+class Keyboard(Node):
     __api__ = [
         "get_state",
         "get_all_state",

@@ -1,15 +1,21 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 
 try:
     from gello.robots.dynamixel import DynamixelRobot
-except ImportError:
-    DynamixelRobot = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        DynamixelRobot = None  # type: ignore
 
 
-class Gello:
+class Gello(Node):
     __api__ = [
         "get_state",
         "get_all_state",
@@ -23,7 +29,7 @@ class Gello:
         baudrate: int = 57600,
         joint_ids: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8),
         joint_offsets: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-        joint_signs: tuple[int | float, ...] = (1, 1, 1, 1, 1, 1, 1, 1),
+        joint_signs: tuple[int, ...] = (1, 1, 1, 1, 1, 1, 1, 1),
         gripper_config: tuple[int, float, float] = (9, 0.0, 0.0),
         start_joints: tuple[float, ...] = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         *,

@@ -1,4 +1,5 @@
 import threading as th
+from typing import TYPE_CHECKING
 
 from ..node import Node
 from ..serializers import PickleSerializer
@@ -7,8 +8,11 @@ from ._serialize import get_fn, wrap_fn_pack, wrap_fn_unpack
 
 try:
     import zerorpc
-except ImportError:
-    zerorpc = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        zerorpc = None  # type: ignore
 
 
 class ZeroRpcServer(th.Thread, Node):

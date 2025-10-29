@@ -3,19 +3,24 @@ import queue
 import socket
 import struct
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .. import time
 from ..filters import LowPassFilter
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
 
 try:
     from xarm.wrapper import XArmAPI
-except ImportError:
-    XArmAPI = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        XArmAPI = None  # type: ignore
 
 
 class ArmModel(Enum):
@@ -47,7 +52,7 @@ class RequestType(Enum):
     SPEEDJ = auto()
 
 
-class Xarm:
+class Xarm(Node):
     __api__ = [
         "get_state",
         "get_all_state",

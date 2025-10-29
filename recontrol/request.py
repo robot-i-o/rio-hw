@@ -9,7 +9,7 @@ class Request:
 
     type: Enum
     params: dict
-    id: str = None
+    id: str | None = None
 
     def __post_init__(self):
         if self.id is None:

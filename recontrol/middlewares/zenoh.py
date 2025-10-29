@@ -1,4 +1,5 @@
 import threading as th
+from typing import TYPE_CHECKING
 
 from ..node import Node
 from ..serializers import PickleSerializer
@@ -7,8 +8,11 @@ from ._serialize import wrap_fn_unpack
 
 try:
     import zenoh
-except ImportError:
-    zenoh = None
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        zenoh = None  # type: ignore
 
 
 class ZenohServer(th.Thread, Node):
