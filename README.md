@@ -34,7 +34,13 @@ sudo ./scripts/setup/realsense.sh
 realsense-viewer
 ```
 
-Zed: To install ZED SDK for the first time, see [Stereolabs Docs: Install the ZED Python API](https://www.stereolabs.com/docs/development/python/install). 
+Record3d: (iPhone only) Download the [Record3D iOS app](https://record3d.app/) and keep the app running in the background. You may need to pay for both "Full Version" and "Wi-Fi Streaming & RGBD Videos" in-app purchases or restore purchases.
+```bash
+sudo ./scripts/setup/record3d.sh
+# Enable "Settings -> Higher-quality LiDAR recording" to capture data at higher resolution.
+```
+
+Zed: To install ZED SDK for the first time, see [Stereolabs Docs: Install the ZED Python API](https://www.stereolabs.com/docs/development/python/install).
 ```bash
 # (re)install pyzed
 python /usr/local/zed/get_python_api.py
