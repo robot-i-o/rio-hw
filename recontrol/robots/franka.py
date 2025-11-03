@@ -120,7 +120,7 @@ class Franka(Node):
         self.driver = driver
         self.robot_port = robot_port
         self.dtype = dtype
-        super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=100, **kwargs)
+        super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
         example_request_params = {
