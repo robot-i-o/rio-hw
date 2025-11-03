@@ -11,12 +11,16 @@ from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
 
 try:
-    from xarm.wrapper import XArmAPI
+    from .utils.xarm_driver import XArmGripperDriver
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
-        XArmAPI = None  # type: ignore
+        XArmGripperDriver = None  # type: ignore
+
+
+class GripperController(Enum):
+    TASK_POS = auto()
 
 
 class GripperModel(Enum):
@@ -25,10 +29,6 @@ class GripperModel(Enum):
     G2 = auto()
     ROBOTIQ_2F85 = auto()
     ROBOTIQ_2F140 = auto()
-
-
-class GripperController(Enum):
-    TASK_POS = auto()
 
 
 class RequestType(Enum):
@@ -96,7 +96,7 @@ class XarmGripper(Node):
         super().__post_init__()
 
     def pubreq(self):
-        gripper = XarmGripperDriver(self.robot_ip, self.robot_model, self.home_to_open)
+        gripper = XArmGripperDriver(self.robot_ip, self.robot_model.name.lower(), self.home_to_open)
         gripper.start()
 
         try:
@@ -185,107 +185,6 @@ class XarmGripper(Node):
             "target_time": target_time,
         }
         self.request_queue.put(req)
-
-
-class XarmGripperDriver:
-    def __init__(self, robot_ip, robot_model, home_to_open: bool = True):
-        self.robot_ip = robot_ip
-        self.robot_model = robot_model
-        self.home_to_open = home_to_open
-
-    def start(self):
-        arm = XArmAPI(self.robot_ip, is_radian=True, do_not_open=True)
-
-        arm.connect()
-        arm.clean_error()
-        arm.clean_warn()
-        arm.motion_enable(True)
-        if arm.has_err_warn:
-            _, err_warn = arm.get_err_warn_code()
-            if err_warn[0] != 0:
-                raise RuntimeError("Check whether e-stop button is pressed.")
-
-        self.gripper = arm
-        if self.robot_model == GripperModel.LITE6:
-            self.gripper.set_mode(0)
-            self.gripper.set_state(0)
-        elif self.robot_model in (GripperModel.G1, GripperModel.G2):
-            self.gripper.set_gripper_mode(0)
-            self.gripper.set_gripper_enable(True)
-            # self.gripper.set_collision_tool_model(1)
-        elif self.robot_model in (GripperModel.ROBOTIQ_2F85, GripperModel.ROBOTIQ_2F140):
-            self.gripper.set_mode(0)
-            self.gripper.set_state(0)
-            self.gripper.robotiq_reset()
-            self.gripper.robotiq_set_activate()
-        else:
-            raise ValueError(self.robot_model)
-        time.sleep(0.1)
-
-        if self.home_to_open:
-            self.moveL(1.0, wait=True)  # open
-
-    def stop(self):
-        if self.robot_model == GripperModel.LITE6:
-            self.gripper.stop_lite6_gripper()
-        self.gripper.disconnect()
-
-    def state(self):
-        # get state from robot
-        if self.robot_model == GripperModel.LITE6:
-            pos = self._lite6_gripper_pos
-            robot_state = {
-                "gripper_position": pos,
-            }
-        elif self.robot_model == GripperModel.G1:
-            _, pos = self.gripper.get_gripper_position()
-            # [-10, 850] -> [0, 1]
-            pos = (pos + 10) / 860
-            robot_state = {
-                "gripper_position": pos,
-            }
-        elif self.robot_model == GripperModel.G2:
-            _, pos = self.gripper.get_gripper_g2_position()
-            # [0, 84] -> [0, 1]
-            pos = pos / 84
-            robot_state = {
-                "gripper_position": pos,
-            }
-        elif self.robot_model in (GripperModel.ROBOTIQ_2F85, GripperModel.ROBOTIQ_2F140):
-            _, result = self.gripper.robotiq_get_status()
-            pos = result[6]  # [0, 255]
-            # [255, 0] -> [0, 1]
-            pos = 1 - pos / 255  # 0 is open and 255 is closed
-            robot_state = {
-                "gripper_position": pos,
-            }
-        else:
-            raise ValueError(self.robot_model)
-        return robot_state
-
-    def moveL(self, target_pos, wait=False):
-        if self.robot_model == GripperModel.LITE6:
-            assert self.gripper.mode == 0
-            if target_pos > 0.5:
-                self.gripper.open_lite6_gripper(sync=wait)
-                self._lite6_gripper_pos = 1.0
-            else:
-                self.gripper.close_lite6_gripper(sync=wait)
-                self._lite6_gripper_pos = 0.0
-        elif self.robot_model == GripperModel.G1:
-            # [0, 1] -> [-10, 850]
-            pos = target_pos * 860 - 10
-            self.gripper.set_gripper_position(pos, speed=5000, wait=wait)  # speed: [0, 5000]
-        elif self.robot_model == GripperModel.G2:
-            # [0, 1] -> [0, 84]
-            pos = target_pos * 84
-            self.gripper.set_gripper_g2_position(pos, speed=225, force=50, wait=wait)  # speed: [15, 225], force: [1, 100]
-        elif self.robot_model in (GripperModel.ROBOTIQ_2F85, GripperModel.ROBOTIQ_2F140):
-            # [0, 1] -> [255, 0]
-            pos = 255 - target_pos * 255  # 0 is open and 255 is closed
-            self.gripper.robotiq_set_position(pos, speed=255, force=255, wait=wait)  # speed: [0, 255], force: [0, 255]
-        else:
-            raise ValueError(self.robot_model)
 
 
 def XarmGripperServer(mw, *args, **kwargs):

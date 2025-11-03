@@ -1,7 +1,6 @@
 import os
 import queue
 import socket
-import struct
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -16,11 +15,14 @@ from ..request import Request
 
 try:
     from xarm.wrapper import XArmAPI
+
+    from .utils.xarm_driver import XArmSocket
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
         XArmAPI = None  # type: ignore
+        XArmSocket = None  # type: ignore
 
 
 class ArmModel(Enum):
@@ -146,7 +148,7 @@ class Xarm(Node):
         }
 
         dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
-        example_robot_state = XarmSocket.bytes_to_state(dummy_data)
+        example_robot_state = XArmSocket.bytes_to_state(dummy_data)
         example_robot_state = {k: np.array(v, dtype=self.dtype) for k, v in example_robot_state.items()}
 
         self.example_request = {
@@ -167,15 +169,15 @@ class Xarm(Node):
         sock.setblocking(True)
         sock.settimeout(1)
         try:
-            sock.connect((self.robot_ip, XarmSocket.PORT))
+            sock.connect((self.robot_ip, XArmSocket.PORT))
 
             buffer = sock.recv(4)
             while len(buffer) < 4:
                 buffer += sock.recv(4 - len(buffer))
-            size = XarmSocket.bytes_to_u32(buffer[:4])
+            size = XArmSocket.bytes_to_u32(buffer[:4])
 
             # Main loop
-            rate = time.Rate(XarmSocket.FREQ)
+            rate = time.Rate(XArmSocket.FREQ)
             not_pub_ready = True
             while not self.exit_event.is_set():
                 buffer += sock.recv(size - len(buffer))
@@ -184,7 +186,7 @@ class Xarm(Node):
                 data = buffer[:size]
                 buffer = buffer[size:]
 
-                robot_state = XarmSocket.bytes_to_state(data)
+                robot_state = XArmSocket.bytes_to_state(data)
                 robot_state = {k: np.array(v, dtype=self.dtype) for k, v in robot_state.items()}
                 robot_state["target_tcp_pose"][:3] *= 0.001  # convert mm to m
                 robot_state["actual_tcp_pose"][:3] *= 0.001  # convert mm to m
@@ -393,64 +395,6 @@ class Xarm(Node):
             "target_time": target_time,
         }
         self.request_queue.put(req)
-
-
-class XarmSocket:
-    # https://docs.supportarticle.ufactory.cc/support_articles/developer/firmware/how-to-get-the-real-time-data-via-tcp-30000-port.html
-    # Frequency: 250HZ (200HZ with FT sensor)
-    P30000 = {
-        "actual_tcp_pose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
-        "actual_tcp_speed": [497, 520],  # mm/s & rad/s
-        "actual_jointq": [117, 144],  # rad
-        "actual_jointqd": [449, 472],  # rad/s
-        "target_tcp_pose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
-        "target_tcp_speed": [449, 472],  # mm/s & rad/s
-        "target_jointq": [33, 60],  # rad
-        "target_jointqd": [61, 88],  # rad/s
-    }
-    PORT = 30000
-    FREQ = 250
-
-    @staticmethod
-    def bytes_to_fp32(bytes_data, is_big_endian=False):
-        return struct.unpack(">f" if is_big_endian else "<f", bytes_data)[0]
-
-    @staticmethod
-    def bytes_to_fp32_list(bytes_data, n=0, is_big_endian=False):
-        ret = []
-        count = n if n > 0 else len(bytes_data) // 4
-        for i in range(count):
-            ret.append(XarmSocket.bytes_to_fp32(bytes_data[i * 4 : i * 4 + 4], is_big_endian))
-        return ret
-
-    @staticmethod
-    def bytes_to_u8(data):
-        data_u8_0 = int.from_bytes(data[:], byteorder="little")
-        return data_u8_0
-
-    @staticmethod
-    def bytes_to_u16(data):
-        data_u16 = data[0] << 8 | data[1]
-        return data_u16
-
-    @staticmethod
-    def bytes_to_u32(data):
-        data_u32 = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3]
-        return data_u32
-
-    @staticmethod
-    def bytes_to_u64(data):
-        if len(data) != 8:
-            raise ValueError("Input data must be exactly 8 bytes long")
-        u64 = struct.unpack(">Q", data)[0]
-        return u64
-
-    @staticmethod
-    def bytes_to_state(data):
-        state = {}
-        for key, (start, end) in XarmSocket.P30000.items():
-            state[key] = XarmSocket.bytes_to_fp32_list(data[start - 1 : end])
-        return state
 
 
 def XarmServer(mw, *args, **kwargs):
