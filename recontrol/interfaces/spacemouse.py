@@ -86,10 +86,10 @@ class Spacemouse(Node):
         super().__post_init__()
 
     def pub(self):
-        try:
-            check_spacemouse_service()
-            spnav.spnav_open()
+        check_spacemouse_service()
+        spnav.spnav_open()
 
+        try:
             # Initialize state
             motion_event = np.zeros((7,), dtype=np.int64)
             motion_state_transformed = np.zeros((6,), dtype=self.dtype)

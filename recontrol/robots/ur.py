@@ -158,46 +158,17 @@ class Ur(Node):
             **example_robot_state,
             "timestamp": time.now(),
         }
-        self.worker = self.pub
-        self.run = self.req
+        self.worker = None
+        self.run = self.pubreq
         super().__post_init__()
 
-        self.rtde_c = RTDEControlInterface(hostname=self.robot_ip)
-        self.rtde_r = rtde_r
-
-    def pub(self):
-        try:
-            # Main loop
-            rate = time.Rate(self.freq)
-            not_pub_ready = True
-            while not self.exit_event.is_set():
-                robot_state = {}
-                for k, v in self.receive_fn_map.items():
-                    robot_state[k] = np.array(getattr(self.rtde_r, f"get{v}")(), dtype=self.dtype)
-
-                # Store current state in ring buffer
-                data = {
-                    **robot_state,
-                    "timestamp": time.now(),
-                }
-                self.ring_buffer.put(data)
-                if not_pub_ready:
-                    self.pub_ready_event.set()
-                    not_pub_ready = False
-                rate.precise_sleep()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            pass
-
-    def req(self):
+    def pubreq(self):
+        rtde_c = RTDEControlInterface(hostname=self.robot_ip)
+        rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
         try:
             # enable soft real-time
             if self.soft_real_time:
                 os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
-
-            rtde_c = self.rtde_c
-            rtde_r = self.rtde_r
 
             # set parameters
             if self.tcp_offset_pose is not None:
@@ -225,6 +196,7 @@ class Ur(Node):
             dt = 1.0 / self.freq
             rate = time.Rate(self.freq)
             self.req_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
@@ -234,6 +206,19 @@ class Ur(Node):
                     assert rtde_c.servoL(pose_command, vel, acc, dt, self.lookahead_time, self.gain)
                 else:
                     raise ValueError(self.robot_controller)
+                robot_state = {}
+                for k, v in self.receive_fn_map.items():
+                    robot_state[k] = np.array(getattr(self.rtde_r, f"get{v}")(), dtype=self.dtype)
+
+                # Store current state in ring buffer
+                data = {
+                    **robot_state,
+                    "timestamp": time.now(),
+                }
+                self.ring_buffer.put(data)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
 
                 # Fetch requests from queue
                 try:

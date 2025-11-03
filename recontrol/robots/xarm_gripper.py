@@ -95,13 +95,11 @@ class XarmGripper(Node):
         self.run = self.pubreq
         super().__post_init__()
 
-        self.gripper = XarmGripperDriver(self.robot_ip, self.robot_model, self.home_to_open)
-
     def pubreq(self):
-        try:
-            gripper = self.gripper
-            gripper.start()
+        gripper = XarmGripperDriver(self.robot_ip, self.robot_model, self.home_to_open)
+        gripper.start()
 
+        try:
             if self.robot_controller == GripperController.TASK_POS:
                 curr_pos = self.gripper.state()["gripper_position"]
                 # pose interpolation

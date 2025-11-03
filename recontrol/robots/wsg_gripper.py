@@ -99,12 +99,12 @@ class WsgGripper(Node):
         self.run = self.pubreq
         super().__post_init__()
 
-        self.gripper = WSGBinaryDriver(hostname=self.robot_ip, port=self.robot_port)
-        self.gripper.start()
-
     def pubreq(self):
+        gripper = WSGBinaryDriver(hostname=self.robot_ip, port=self.robot_port)
+        gripper.start()
+
         try:
-            wsg = self.gripper
+            wsg = gripper
 
             # home gripper to initialize
             wsg.ack_fault()
@@ -183,7 +183,7 @@ class WsgGripper(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            wsg.stop()
+            gripper.stop()
 
     def get_state(self, k=None, out=None):
         if k is None:

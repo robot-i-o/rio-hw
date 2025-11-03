@@ -103,21 +103,20 @@ class Gamepad(Node):
         super().__post_init__()
 
     def pub(self):
-        gamepad = None
-        try:
-            # Find gamepad device
-            if self.device_path:
-                gamepad = evdev.InputDevice(self.device_path)
-            else:
-                gamepad = find_gamepad()
-            capabilities = gamepad.capabilities()
-            self._set_axis_ranges(capabilities)
+        # Find gamepad device
+        if self.device_path:
+            gamepad = evdev.InputDevice(self.device_path)
+        else:
+            gamepad = find_gamepad()
+        capabilities = gamepad.capabilities()
+        self._set_axis_ranges(capabilities)
 
+        try:
+            # Initialize state
             motion_event = np.zeros((6,), dtype=self.dtype)
             button_state = np.zeros((self.n_buttons,), dtype=self.dtype)
             motion_event_transformed = np.zeros((6,), dtype=self.dtype)
             timestamp = time.now()
-
             data = {
                 "motion_state_transformed": motion_event,
                 "button_state": button_state,
@@ -161,8 +160,7 @@ class Gamepad(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            if gamepad is not None:
-                gamepad.close()
+            gamepad.close()
 
     def _set_axis_ranges(self, capabilities):
         axis_ranges = {}

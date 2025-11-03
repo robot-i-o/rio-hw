@@ -136,27 +136,26 @@ class Realsense(Node):
         if self.enable_depth:
             h, w = self.resolution_depth
             rs_config.enable_stream(rs.stream.depth, w, h, rs.format.z16, fps)
+        rs_config.enable_device(self.serial)
+
+        # start pipeline
+        pipeline = rs.pipeline()
+        pipeline_profile = pipeline.start(rs_config)
+
+        # report global time
+        # https://github.com/IntelRealSense/librealsense/pull/3909
+        d = pipeline_profile.get_device().first_color_sensor()
+        d.set_option(rs.option.global_time_enabled, 1)
+
+        # setup advanced mode
+        if self.advanced_mode_config is not None:
+            advanced_mode_config = json.load(open(self.advanced_mode_config), "r")
+            json_text = json.dumps(advanced_mode_config)
+            device = pipeline_profile.get_device()
+            advanced_mode = rs.rs400_advanced_mode(device)
+            advanced_mode.load_json(json_text)
 
         try:
-            rs_config.enable_device(self.serial)
-
-            # start pipeline
-            pipeline = rs.pipeline()
-            pipeline_profile = pipeline.start(rs_config)
-
-            # report global time
-            # https://github.com/IntelRealSense/librealsense/pull/3909
-            d = pipeline_profile.get_device().first_color_sensor()
-            d.set_option(rs.option.global_time_enabled, 1)
-
-            # setup advanced mode
-            if self.advanced_mode_config is not None:
-                advanced_mode_config = json.load(open(self.advanced_mode_config), "r")
-                json_text = json.dumps(advanced_mode_config)
-                device = pipeline_profile.get_device()
-                advanced_mode = rs.rs400_advanced_mode(device)
-                advanced_mode.load_json(json_text)
-
             # Main loop
             rate = time.Rate(self.freq)
             self.pub_ready_event.set()

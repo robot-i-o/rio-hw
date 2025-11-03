@@ -49,36 +49,35 @@ class Keyboard(Node):
         super().__post_init__()
 
     def pub(self):
-        listener = None
+        lock = threading.Lock()
+        alphanumeric_keys = set()
+        special_keys = set()
+
+        def get_key(key):
+            try:  # alphanumeric keyboard.KeyCode
+                c = True
+                k = ord(key.char)
+            except AttributeError:  # special keyboard.Key
+                c = False
+                k = key.value.vk
+            return c, k
+
+        def on_press(key):
+            if key is not None:
+                c, k = get_key(key)
+                with lock:
+                    alphanumeric_keys.add(k) if c else special_keys.add(k)
+
+        def on_release(key):
+            if key is not None:
+                c, k = get_key(key)
+                with lock:
+                    alphanumeric_keys.discard(k) if c else special_keys.discard(k)
+
+        listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+        listener.start()
+
         try:
-            lock = threading.Lock()
-            alphanumeric_keys = set()
-            special_keys = set()
-
-            def get_key(key):
-                try:  # alphanumeric keyboard.KeyCode
-                    c = True
-                    k = ord(key.char)
-                except AttributeError:  # special keyboard.Key
-                    c = False
-                    k = key.value.vk
-                return c, k
-
-            def on_press(key):
-                if key is not None:
-                    c, k = get_key(key)
-                    with lock:
-                        alphanumeric_keys.add(k) if c else special_keys.add(k)
-
-            def on_release(key):
-                if key is not None:
-                    c, k = get_key(key)
-                    with lock:
-                        alphanumeric_keys.discard(k) if c else special_keys.discard(k)
-
-            listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-            listener.start()
-
             # Main loop
             rate = time.Rate(self.freq)
             not_pub_ready = True
@@ -104,8 +103,7 @@ class Keyboard(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            if listener:
-                listener.join()
+            listener.join()
 
     def get_state(self, k=None, out=None):
         if k is None:

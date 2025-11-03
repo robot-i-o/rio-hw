@@ -109,47 +109,44 @@ class Record3d(Node):
         threadpool_limits(1)
         cv2.setNumThreads(1)
 
-        session = None
+        # Find device
+        dev_idx = -1
+        devs = record3d.Record3DStream.get_connected_devices()
+        for i, dev in enumerate(devs):
+            if dev.udid == self.serial and dev.product_id == self.model:
+                dev_idx = i
+                break
+        if dev_idx == -1:
+            raise RuntimeError
+        dev = devs[dev_idx]
+
+        frame_event = th.Event()
+        stop_event = th.Event()
+        DEVICE_TYPE__TRUEDEPTH = 0
+        DEVICE_TYPE__LIDAR = 1
+
+        def on_new_frame():
+            frame_event.set()
+
+        def on_stream_stopped():
+            stop_event.set()
+
+        def get_intrinsic_mat_from_coeffs(self, coeffs):
+            mat = [
+                [coeffs.fx, 0.0, coeffs.tx],
+                [0.0, coeffs.fy, coeffs.ty],
+                [0.0, 0.0, 1.0],
+            ]
+            return np.array(mat, dtype=self.dtype)
+
+        dev = devs[dev_idx]
+        session = record3d.Record3DStream()
+        session.on_new_frame = on_new_frame
+        session.on_stream_stopped = on_stream_stopped
+        session.connect(dev)  # Initiate connection and start capturing
+        device_type = session.get_device_type()
 
         try:
-            # Find device
-            dev_idx = -1
-            devs = record3d.Record3DStream.get_connected_devices()
-            for i, dev in enumerate(devs):
-                if dev.udid == self.serial and dev.product_id == self.model:
-                    dev_idx = i
-                    break
-            if dev_idx == -1:
-                raise RuntimeError
-            dev = devs[dev_idx]
-
-            frame_event = th.Event()
-            stop_event = th.Event()
-            DEVICE_TYPE__TRUEDEPTH = 0
-            DEVICE_TYPE__LIDAR = 1
-
-            def on_new_frame():
-                frame_event.set()
-
-            def on_stream_stopped():
-                stop_event.set()
-
-            def get_intrinsic_mat_from_coeffs(self, coeffs):
-                mat = [
-                    [coeffs.fx, 0.0, coeffs.tx],
-                    [0.0, coeffs.fy, coeffs.ty],
-                    [0.0, 0.0, 1.0],
-                ]
-                return np.array(mat, dtype=self.dtype)
-
-            dev = devs[dev_idx]
-            session = record3d.Record3DStream()
-            session.on_new_frame = on_new_frame
-            session.on_stream_stopped = on_stream_stopped
-            session.connect(dev)  # Initiate connection and start capturing
-
-            device_type = session.get_device_type()
-
             # Main loop
             rate = time.Rate(self.freq)
             self.pub_ready_event.set()
@@ -219,8 +216,7 @@ class Record3d(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            if session is not None:
-                session.disconnect()
+            session.disconnect()
 
     def get_state(self, k=None, out=None):
         if k is None:

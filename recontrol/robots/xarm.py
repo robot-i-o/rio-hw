@@ -161,8 +161,6 @@ class Xarm(Node):
         self.run = self.req
         super().__post_init__()
 
-        self.arm = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)
-
     def pub(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -209,30 +207,30 @@ class Xarm(Node):
             sock.close()
 
     def req(self):
+        arm = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)
+        # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
+        # arm.set_tcp_jerk(7000)
+        # arm.set_tcp_maxacc(...)
+        # arm.set_joint_jerk(...)
+        # arm.set_joint_maxacc(...)
+        # arm.set_linear_spd_limit_factor(1.2)
+        # arm.set_collision_sensitivity(0)
+        # arm.save_conf()
+        arm.connect()
+        arm.clean_error()
+        arm.clean_warn()
+        arm.motion_enable(True)
+        if arm.has_err_warn:
+            _, err_warn = arm.get_err_warn_code()
+            if err_warn[0] != 0:
+                raise RuntimeError("Check whether e-stop button is pressed.")
+        arm.set_mode(0)
+        arm.set_state(0)
+
         try:
             # enable soft real-time
             if self.soft_real_time:
                 os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
-
-            arm = self.arm
-            # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
-            # arm.set_tcp_jerk(7000)
-            # arm.set_tcp_maxacc(...)
-            # arm.set_joint_jerk(...)
-            # arm.set_joint_maxacc(...)
-            # arm.set_linear_spd_limit_factor(1.2)
-            # arm.set_collision_sensitivity(0)
-            # arm.save_conf()
-            arm.connect()
-            arm.clean_error()
-            arm.clean_warn()
-            arm.motion_enable(True)
-            if arm.has_err_warn:
-                _, err_warn = arm.get_err_warn_code()
-                if err_warn[0] != 0:
-                    raise RuntimeError("Check whether e-stop button is pressed.")
-            arm.set_mode(0)
-            arm.set_state(0)
 
             # set parameters
             if self.tcp_offset_pose is not None:

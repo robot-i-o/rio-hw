@@ -92,13 +92,11 @@ class FrankaGripper(Node):
         self.run = self.pubreq
         super().__post_init__()
 
-        self.gripper = FrankaGripperDriver(self.driver, robot_ip=self.robot_ip)
-
     def pubreq(self):
-        try:
-            gripper = self.gripper
-            gripper.start()
+        gripper = FrankaGripperDriver(self.driver, robot_ip=self.robot_ip)
+        gripper.start()
 
+        try:
             if self.robot_controller == GripperController.TASK_POS:
                 curr_pos = self.gripper.state()["gripper_position"]
                 # pose interpolation

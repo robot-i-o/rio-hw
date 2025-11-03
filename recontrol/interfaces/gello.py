@@ -61,18 +61,18 @@ class Gello(Node):
         super().__post_init__()
 
     def pub(self):
-        try:
-            robot = DynamixelRobot(
-                joint_ids=list(self.joint_ids),
-                joint_offsets=list(self.joint_offsets),
-                joint_signs=list(self.joint_signs),
-                real=True,
-                port=self.port,
-                baudrate=self.baudrate,
-                gripper_config=self.gripper_config,
-                start_joints=np.array(list(self.start_joints)) if self.start_joints else None,
-            )
+        robot = DynamixelRobot(
+            joint_ids=list(self.joint_ids),
+            joint_offsets=list(self.joint_offsets),
+            joint_signs=list(self.joint_signs),
+            real=True,
+            port=self.port,
+            baudrate=self.baudrate,
+            gripper_config=self.gripper_config,
+            start_joints=np.array(list(self.start_joints)) if self.start_joints else None,
+        )
 
+        try:
             # Main loop
             rate = time.Rate(self.freq)
             not_pub_ready = True
@@ -102,7 +102,7 @@ class Gello(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            pass
+            robot._driver.close()
 
     def get_state(self, k=None, out=None):
         if k is None:

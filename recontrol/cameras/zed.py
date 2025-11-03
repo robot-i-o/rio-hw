@@ -183,29 +183,29 @@ class Zed:
         # Set serial number
         init_params.set_from_serial_number(self.serial_number)
 
+        # Open camera
+        err = cam.open(init_params)
+        if err != sl.ERROR_CODE.SUCCESS:
+            raise RuntimeError(err)
+
+        # Create runtime parameters
+        runtime_params = sl.RuntimeParameters()
+
+        # Create image containers
+        if self.concatenate_images:
+            sbs_img = sl.Mat()
+        else:
+            left_img = sl.Mat()
+            right_img = sl.Mat()
+
+        if self.enable_depth:
+            left_depth = sl.Mat()
+            right_depth = sl.Mat()
+
+        # Default resolution for retrieval
+        zed_resolution = sl.Resolution(0, 0)
+
         try:
-            # Open camera
-            err = cam.open(init_params)
-            if err != sl.ERROR_CODE.SUCCESS:
-                raise RuntimeError(err)
-
-            # Create runtime parameters
-            runtime_params = sl.RuntimeParameters()
-
-            # Create image containers
-            if self.concatenate_images:
-                sbs_img = sl.Mat()
-            else:
-                left_img = sl.Mat()
-                right_img = sl.Mat()
-
-            if self.enable_depth:
-                left_depth = sl.Mat()
-                right_depth = sl.Mat()
-
-            # Default resolution for retrieval
-            zed_resolution = sl.Resolution(0, 0)
-
             # Main loop
             rate = time.Rate(self.freq)
             self.pub_ready_event.set()
