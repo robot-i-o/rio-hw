@@ -11,24 +11,26 @@ from recontrol import time
 from ._nodes import StationCfg, make_node
 
 
-def move_arm(arm, freq, t_cmd_target, gello_joints, target_joints, max_joint_delta=0.02, deadband=0.0):
-    command_joints = gello_joints[: len(target_joints)]
-    delta = command_joints - target_joints
+class Robot:
+    @staticmethod
+    def move_arm(arm, freq, t_cmd_target, gello_joints, target_joints, max_joint_delta=0.02, deadband=0.0):
+        command_joints = gello_joints[: len(target_joints)]
+        delta = command_joints - target_joints
 
-    if deadband > 0:
-        delta = np.where(np.abs(delta) < deadband, 0, delta)
+        if deadband > 0:
+            delta = np.where(np.abs(delta) < deadband, 0, delta)
 
-    delta = np.clip(delta, -max_joint_delta, max_joint_delta)
-    target_joints[:] = target_joints + delta
-    arm.moveJ(target_joints.tolist(), t_cmd_target)
-    return target_joints
+        delta = np.clip(delta, -max_joint_delta, max_joint_delta)
+        target_joints[:] = target_joints + delta
+        arm.moveJ(target_joints.tolist(), t_cmd_target)
+        return target_joints
 
-
-def move_gripper(gripper, freq, t_cmd_target, pos, target_pos):
-    if pos is not None:
-        target_pos = pos
-    gripper.moveL([target_pos], t_cmd_target)
-    return target_pos
+    @staticmethod
+    def move_gripper(gripper, freq, t_cmd_target, pos, target_pos):
+        if pos is not None:
+            target_pos = pos
+        gripper.moveL([target_pos], t_cmd_target)
+        return target_pos
 
 
 def check_gello_alignment(gello_joints, target_joints, max_joint_delta=0.8):
@@ -93,21 +95,21 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
 
             if arm:
                 _t_cmd_target = t_cmd_target + args.arm_latency
-                arm_target_jointq = move_arm(arm, freq, _t_cmd_target, gello_jointq, arm_target_jointq)
+                arm_target_jointq = Robot.move_arm(arm, freq, _t_cmd_target, gello_jointq, arm_target_jointq)
 
             if arm2:
                 _gello_jointq = gello2_jointq if gello2 else gello_jointq
                 _t_cmd_target = t_cmd_target + args.arm_latency
-                arm2_target_jointq = move_arm(arm2, freq, _t_cmd_target, _gello_jointq, arm2_target_jointq)
+                arm2_target_jointq = Robot.move_arm(arm2, freq, _t_cmd_target, _gello_jointq, arm2_target_jointq)
 
             if gripper:
                 _t_cmd_target = t_cmd_target + args.gripper_latency
-                gripper_target_pos = move_gripper(gripper, freq, _t_cmd_target, gello_gripper_pos, gripper_target_pos)
+                gripper_target_pos = Robot.move_gripper(gripper, freq, _t_cmd_target, gello_gripper_pos, gripper_target_pos)
 
             if gripper2:
                 _gello_gripper_pos = gello2_gripper_pos if gello2 else gello_gripper_pos
                 _t_cmd_target = t_cmd_target + args.gripper_latency
-                gripper2_target_pos = move_gripper(gripper2, freq, _t_cmd_target, _gello_gripper_pos, gripper2_target_pos)
+                gripper2_target_pos = Robot.move_gripper(gripper2, freq, _t_cmd_target, _gello_gripper_pos, gripper2_target_pos)
 
             # logging
             if it % freq == 0:
