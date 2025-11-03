@@ -158,6 +158,10 @@ class Franka(Node):
         super().__post_init__()
 
     def pubreq(self):
+        # enable soft real-time
+        if self.soft_real_time:
+            os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
+
         arm = FrankaDriver(
             self.driver,
             robot_ip=self.robot_ip,
@@ -167,10 +171,6 @@ class Franka(Node):
         arm.start()
 
         try:
-            # enable soft real-time
-            if self.soft_real_time:
-                os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
-
             # set parameters
             if self.tcp_offset_pose is not None:
                 arm.set_tcp_offset(self.tcp_offset_pose)

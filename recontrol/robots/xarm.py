@@ -209,6 +209,10 @@ class Xarm(Node):
             sock.close()
 
     def req(self):
+        # enable soft real-time
+        if self.soft_real_time:
+            os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
+
         arm = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)
         # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
         # arm.set_tcp_jerk(7000)
@@ -230,10 +234,6 @@ class Xarm(Node):
         arm.set_state(0)
 
         try:
-            # enable soft real-time
-            if self.soft_real_time:
-                os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
-
             # set parameters
             if self.tcp_offset_pose is not None:
                 code = arm.set_tcp_offset(self.tcp_offset_pose)

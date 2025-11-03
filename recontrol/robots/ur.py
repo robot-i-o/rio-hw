@@ -163,13 +163,14 @@ class Ur(Node):
         super().__post_init__()
 
     def pubreq(self):
+        # enable soft real-time
+        if self.soft_real_time:
+            os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
+
         rtde_c = RTDEControlInterface(hostname=self.robot_ip)
         rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
-        try:
-            # enable soft real-time
-            if self.soft_real_time:
-                os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
 
+        try:
             # set parameters
             if self.tcp_offset_pose is not None:
                 self.rtde_c.setTcp(self.tcp_offset_pose)
