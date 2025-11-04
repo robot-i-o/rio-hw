@@ -6,24 +6,29 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .. import time
-from ..filters import LowPassFilter
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
 from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
 
 try:
-    from .utils.franka_driver import FrankaDriver
+    from rtde_control import RTDEControlInterface
+    from rtde_receive import RTDEReceiveInterface
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
-        FrankaDriver = None  # type: ignore
+        RTDEControlInterface = None
+        RTDEReceiveInterface = None
 
 
 class ArmModel(Enum):
-    FR3 = auto()
-    PANDA = auto()
+    UR5E = auto()
+
+
+ArmInfo = {
+    ArmModel.UR5E: {"num_joints": 6},
+}
 
 
 class ArmController(Enum):
@@ -31,33 +36,17 @@ class ArmController(Enum):
     JOINT_POS = auto()
     TASK_VEL = auto()
     JOINT_VEL = auto()
-    TASK_IMPEDANCE = auto()
-    JOINT_IMPEDANCE = auto()
-    TASK_OSC = auto()
-
-
-ArmInfo = {
-    ArmModel.FR3: {"num_joints": 7},
-    ArmModel.PANDA: {"num_joints": 7},
-}
 
 
 class RequestType(Enum):
     MOVEL = auto()
-    MOVEJ = auto()
-    SPEEDL = auto()
-    SPEEDJ = auto()
-    IMPEDANCEL = auto()
-    IMPEDANCEJ = auto()
-    OSCL = auto()
 
 
-class Franka(Node):
+class UrArm(Node):
     __api__ = [
         "get_state",
         "get_all_state",
         "moveL",
-        "moveJ",
     ]
     __pub__ = True
     __req__ = True
@@ -65,26 +54,41 @@ class Franka(Node):
     def __init__(
         self,
         robot_ip: str = "192.168.1.111",
-        robot_model: str = "fr3",
+        robot_model: str = "ur5e",
         robot_controller: str = "task_pos",
-        max_pos_speed=0.25,  # 12.5% of max speed, 2m/s
-        max_rot_speed=0.657,  # 12.5% of max speed, 301 deg/s
+        lookahead_time=0.1,
+        gain=300,
+        max_pos_speed=0.25,  # 5% of max speed
+        max_rot_speed=0.16,  # 5% of max speed
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
         joints_init=None,
         joints_init_speed=1.05,
-        joint_lowpass_alpha=0.1,
         soft_real_time=False,
-        driver: str = "panda_py",
-        robot_port: int = 50051,
-        dtype: np.dtype = np.float32,
+        dtype=np.float32,
         *,
-        freq: int = 500,
+        freq: int = 125,
         max_buffer_size: int | None = None,
         **kwargs,
     ):
-        assert 0 < freq <= 1000
+        """
+        Args:
+            lookahead_time: [0.03, 0.2]s smoothens the trajectory with this lookahead time
+            gain: [100, 2000] proportional gain for following target position
+            max_pos_speed: m/s
+            max_rot_speed: rad/s
+            tcp_offset_pose: 6d pose
+            payload_mass: float
+            payload_cog: 3d position, center of gravity
+            joint_init:
+            joint_init_speed: rad/s
+            soft_real_time: enables round-robin scheduling and real-time priority
+            dtype:
+        """
+        assert 0 < freq <= 500
+        assert 0.03 <= lookahead_time <= 0.2
+        assert 100 <= gain <= 2000
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
         robot_model = ArmModel[robot_model.upper()]
@@ -108,6 +112,8 @@ class Franka(Node):
         self.robot_model = robot_model
         self.robot_controller = robot_controller
         self.num_joints = num_joints
+        self.lookahead_time = lookahead_time
+        self.gain = gain
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
         self.tcp_offset_pose = tcp_offset_pose
@@ -115,35 +121,34 @@ class Franka(Node):
         self.payload_cog = payload_cog
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
-        self.joint_lowpass_alpha = joint_lowpass_alpha
         self.soft_real_time = soft_real_time
-        self.driver = driver
-        self.robot_port = robot_port
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
         example_request_params = {
             ArmController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
-            ArmController.JOINT_POS: (RequestType.MOVEJ, {"target_jointq": np.zeros((self.num_joints,), dtype=self.dtype)}),
-            ArmController.TASK_VEL: (RequestType.SPEEDL, {"target_twist": np.zeros((6,), dtype=self.dtype)}),
-            ArmController.JOINT_VEL: (RequestType.SPEEDJ, {"target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype)}),
         }[self.robot_controller][1]
         example_request_params = {
             **example_request_params,
             "target_time": time.now(),
         }
 
-        example_robot_state = {
-            "actual_tcp_pose": np.zeros((6,), dtype=self.dtype),
-            "actual_tcp_speed": np.zeros((6,), dtype=self.dtype),
-            "actual_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
-            "actual_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
-            "target_tcp_speed": np.zeros((6,), dtype=self.dtype),
-            "target_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
+        rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
+        receive_fn_map = {
+            "actual_tcp_pose": "ActualTCPPose",
+            "actual_tcp_speed": "ActualTCPSpeed",
+            "actual_jointq": "ActualQ",
+            "actual_jointqd": "ActualQd",
+            "target_tcp_pose": "TargetTCPPose",
+            "target_tcp_speed": "TargetTCPSpeed",
+            "target_jointq": "TargetQ",
+            "target_jointqd": "TargetQd",
         }
+        example_robot_state = {}
+        for k, v in receive_fn_map.items():
+            example_robot_state[k] = np.array(getattr(rtde_r, f"get{v}")(), dtype=self.dtype)
+        self.receive_fn_map = receive_fn_map
 
         self.example_request = {
             "type": next(iter(RequestType)).value,
@@ -162,36 +167,29 @@ class Franka(Node):
         if self.soft_real_time:
             os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
 
-        arm = FrankaDriver(
-            self.driver,
-            robot_ip=self.robot_ip,
-            robot_model=self.robot_model.name.lower(),
-            robot_port=self.robot_port,
-        )
-        arm.start()
+        rtde_c = RTDEControlInterface(hostname=self.robot_ip)
+        rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
 
         try:
             # set parameters
             if self.tcp_offset_pose is not None:
-                arm.set_tcp_offset(self.tcp_offset_pose)
+                self.rtde_c.setTcp(self.tcp_offset_pose)
             if self.payload_mass is not None:
-                arm.set_tcp_load(self.payload_mass, self.payload_cog)
+                if self.payload_cog is not None:
+                    assert self.rtde_c.setPayload(self.payload_mass, self.payload_cog)
+                else:
+                    assert self.rtde_c.setPayload(self.payload_mass)
 
             # init pose
             if self.joints_init is not None:
-                arm.moveJ(self.joints_init, wait=True)
+                assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
 
             if self.robot_controller == ArmController.TASK_POS:
-                curr_pose = arm.state()["actual_tcp_pose"]
+                curr_pose = rtde_r.getActualTCPPose()
                 # pose interpolation
                 curr_t = time.now()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
-            elif self.robot_controller == ArmController.JOINT_POS:
-                curr_jointq = arm.state()["actual_jointq"]
-                # joint filtering/smoothing
-                target_jointq = curr_jointq
-                lowpass_filter = LowPassFilter(alpha=self.joint_lowpass_alpha, initial=curr_jointq)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -202,15 +200,16 @@ class Franka(Node):
             not_pub_ready = True
             while not self.exit_event.is_set():
                 t_now = time.now()
+                # send command to robot
                 if self.robot_controller == ArmController.TASK_POS:
                     pose_command = pose_interp(t_now)
-                    arm.moveL(pose_command)
-                elif self.robot_controller == ArmController.JOINT_POS:
-                    joint_command = lowpass_filter(target_jointq)
-                    arm.moveJ(joint_command)
+                    vel, acc = 0.5, 0.5  # dummy, not used by ur5
+                    assert rtde_c.servoL(pose_command, vel, acc, dt, self.lookahead_time, self.gain)
                 else:
                     raise ValueError(self.robot_controller)
-                robot_state = arm.state()
+                robot_state = {}
+                for k, v in self.receive_fn_map.items():
+                    robot_state[k] = np.array(getattr(self.rtde_r, f"get{v}")(), dtype=self.dtype)
 
                 # Store current state in ring buffer
                 data = {
@@ -232,7 +231,7 @@ class Franka(Node):
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
-                        target_pose = np.array(req.params.get("target_pose"))
+                        target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
                         pose_interp = pose_interp.schedule_waypoint(
@@ -244,15 +243,18 @@ class Franka(Node):
                             last_waypoint_time=last_waypoint_time,
                         )
                         last_waypoint_time = target_time
-                    elif req.type == RequestType.MOVEJ:
-                        target_jointq = np.array(req.params.get("target_jointq"))
                     else:
                         raise ValueError(req.type)
-                rate.sleep()  # not using precise_sleep() spinning for higher frequency control
+                rate.precise_sleep()
         except KeyboardInterrupt:
             pass
         finally:
-            arm.stop()
+            # decelerate
+            rtde_c.servoStop()
+            # terminate
+            rtde_c.stopScript()
+            rtde_c.disconnect()
+            rtde_r.disconnect()
 
     def get_state(self, k=None, out=None):
         if k is None:
@@ -263,34 +265,21 @@ class Franka(Node):
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_pose, target_time):
-        target_pose = np.array(target_pose)
-        assert target_pose.shape == (6,)
-        min_target_time = time.now() + 0.01
-        if target_time < min_target_time:
-            target_time = min_target_time
+    def moveL(self, pose, target_time):
+        pose = np.array(pose, dtype=self.dtype)
+        assert target_time > time.now()
+        assert pose.shape == (6,)
         req = {
             "type": RequestType.MOVEL.value,
-            "target_pose": target_pose,
-            "target_time": target_time,
-        }
-        self.request_queue.put(req)
-
-    def moveJ(self, target_joints, target_time):
-        target_joints = np.array(target_joints)
-        assert target_joints.shape == (self.num_joints,)
-        assert target_time > time.now()
-        req = {
-            "type": RequestType.MOVEJ.value,
-            "target_jointq": target_joints,
+            "target_pose": pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)
 
 
-def FrankaServer(mw, *args, **kwargs):
-    return ServerFactory(mw, Franka, *args, **kwargs)
+def UrArmServer(mw, *args, **kwargs):
+    return ServerFactory(mw, UrArm, *args, **kwargs)
 
 
-def FrankaClient(mw, *args, **kwargs):
-    return ClientFactory(mw, Franka, *args, **kwargs)
+def UrArmClient(mw, *args, **kwargs):
+    return ClientFactory(mw, UrArm, *args, **kwargs)

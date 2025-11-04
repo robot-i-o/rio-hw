@@ -17,7 +17,7 @@ class Xarm7Station:
         addr: str = "127.0.0.1:5120"
         robot_model: str = "g1"
 
-    arm: str | None = "Xarm"
+    arm: str | None = "XarmArm"
     arm_cfg: ArmCfg = field(default_factory=lambda: Xarm7Station.ArmCfg(robot_ip="192.168.1.228"))
 
     gripper: str | None = "XarmGripper"

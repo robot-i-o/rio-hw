@@ -11,7 +11,7 @@ class MobileXArm7Station:
         max_pos_speed: float = 0.25
         max_rot_speed: float = 0.6
 
-    arm: str | None = "Xarm"
+    arm: str | None = "XarmArm"
     arm_cfg: ArmCfg = field(default_factory=lambda: MobileXArm7Station.ArmCfg(robot_ip="192.168.1.205"))
 
     gripper: str | None = None

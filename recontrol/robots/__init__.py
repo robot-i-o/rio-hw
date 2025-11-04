@@ -1,15 +1,15 @@
-from .franka import FrankaClient, FrankaServer
+from .franka_arm import FrankaArmClient, FrankaArmServer
 from .franka_gripper import FrankaGripperClient, FrankaGripperServer
-from .ur import UrClient, UrServer
+from .ur_arm import UrArmClient, UrArmServer
 from .wsg_gripper import WsgGripperClient, WsgGripperServer
-from .xarm import XarmClient, XarmServer
+from .xarm_arm import XarmArmClient, XarmArmServer
 from .xarm_gripper import XarmGripperClient, XarmGripperServer
 
 __all__ = [
-    "Franka",
+    "FrankaArm",
     "FrankaGripper",
-    "Ur",
+    "UrArm",
     "WsgGripper",
-    "Xarm",
+    "XarmArm",
     "XarmGripper",
 ]

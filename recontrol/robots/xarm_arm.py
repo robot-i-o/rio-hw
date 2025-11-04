@@ -54,7 +54,7 @@ class RequestType(Enum):
     SPEEDJ = auto()
 
 
-class Xarm(Node):
+class XarmArm(Node):
     __api__ = [
         "get_state",
         "get_all_state",
@@ -397,9 +397,9 @@ class Xarm(Node):
         self.request_queue.put(req)
 
 
-def XarmServer(mw, *args, **kwargs):
-    return ServerFactory(mw, Xarm, *args, **kwargs)
+def XarmArmServer(mw, *args, **kwargs):
+    return ServerFactory(mw, XarmArm, *args, **kwargs)
 
 
-def XarmClient(mw, *args, **kwargs):
-    return ClientFactory(mw, Xarm, *args, **kwargs)
+def XarmArmClient(mw, *args, **kwargs):
+    return ClientFactory(mw, XarmArm, *args, **kwargs)
