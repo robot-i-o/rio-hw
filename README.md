@@ -76,7 +76,7 @@ See [[Hardware Guide (Google Docs)]](https://docs.google.com/document/d/1_NbHk4z
 A `Node` dynamically inherits from any given `Middleware` to handle automatically message passing, and factory functions produce `Server` and `Client` nodes. Each `Node` publishes data and handles requests, in separate loops or in the same loop.
 1. `Node.pub()` only publishes data.
 2. `Node.req()` only handles requests.
-3. `Node.pubreq()` both publishes data and handles requests. (NOT RECOMMENDED)
+3. `Node.pubreq()` both publishes data and handles requests.
 4. `Node.req()` only handles requests, and `Node.pub()` publishes data in a separate worker.
 5. `Node.pub()` only publishes data, and `Node.req()` handles requests in a separate worker.
 
