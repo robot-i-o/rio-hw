@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .. import time
+from ..interpolators import PoseTrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
-from ..pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from ..request import Request
 
 try:
