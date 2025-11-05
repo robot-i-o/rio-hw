@@ -94,7 +94,7 @@ class Template(Node):
                     if req.type == RequestType.METHOD:
                         raise NotImplementedError
                     else:
-                        raise RuntimeError
+                        raise RuntimeError(req.type)
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass
