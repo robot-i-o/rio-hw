@@ -33,6 +33,7 @@ dev = [
     "pytest",
     "pytest-xdist",
     "ty",
+    "typos",
 ]
 serializers = [
     "cloudpickle",
@@ -123,3 +124,12 @@ python_files = "test_*.py"
 testpaths = [
     "recontrol/_tests",
 ]
+
+[tool.typos]
+files.extend-exclude = ["*.urdf", "*.usd", "*.usda", "*.mjcf"]
+
+[tool.typos.default.extend-words]
+UDID = "UDID"
+
+[tool.typos.default.extend-identifiers]
+SharedNDArray = "SharedNDArray"

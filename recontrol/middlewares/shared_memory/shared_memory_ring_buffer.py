@@ -27,8 +27,8 @@ class SharedMemoryRingBuffer:
         shm_manager: Manages the life cycle of share memories
             across processes. Remember to run .start() before passing.
         array_specs: Name, shape and type of arrays for a single time step.
-        get_max_k: The maxmum number of items can be queried at once.
-        get_time_budget: The maxmum amount of time spent copying data from
+        get_max_k: The maximum number of items can be queried at once.
+        get_time_budget: The maximum amount of time spent copying data from
             shared memory to local memory. Increase this number for larger arrays.
         put_desired_frequency: The maximum frequency that .put() can be called.
             This influces the buffer size.

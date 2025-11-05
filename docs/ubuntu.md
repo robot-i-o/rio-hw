@@ -78,7 +78,7 @@ grep PREEMPT_RT /boot/config-$(uname -r) || true
 
 ### 3) Additional setup for NUC
 
-See "Step 4: Set up CPU monitoring utilies." from [`deoxys/System Prerequisite`](https://zhuyifengzju.github.io/deoxys_docs/html/installation/system_prerequisite.html).
+See "Step 4: Set up CPU monitoring utilities." from [`deoxys/System Prerequisite`](https://zhuyifengzju.github.io/deoxys_docs/html/installation/system_prerequisite.html).
 
 ### Anydesk
 

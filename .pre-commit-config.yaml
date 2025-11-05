@@ -20,3 +20,7 @@ repos:
         args: [--fix] # Apply fixes to resolve lint violations.
       # Run the formatter.
       - id: ruff-format
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.38.1
+    hooks:
+      - id: typos
