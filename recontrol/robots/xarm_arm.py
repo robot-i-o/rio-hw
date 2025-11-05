@@ -25,22 +25,22 @@ except ImportError as e:
         XArmSocket = None  # type: ignore
 
 
-class ArmModel(Enum):
+class RobotModel(Enum):
     XARM6 = auto()
     XARM7 = auto()
     XARM850 = auto()
     LITE6 = auto()
 
 
-ArmInfo = {
-    ArmModel.XARM6: {"num_joints": 6},
-    ArmModel.XARM7: {"num_joints": 7},
-    ArmModel.XARM850: {"num_joints": 6},
-    ArmModel.LITE6: {"num_joints": 6},
+RobotInfo = {
+    RobotModel.XARM6: {"num_joints": 6},
+    RobotModel.XARM7: {"num_joints": 7},
+    RobotModel.XARM850: {"num_joints": 6},
+    RobotModel.LITE6: {"num_joints": 6},
 }
 
 
-class ArmController(Enum):
+class RobotController(Enum):
     TASK_POS = auto()
     JOINT_POS = auto()
     TASK_VEL = auto()
@@ -102,9 +102,9 @@ class XarmArm(Node):
         assert 0 < freq <= 250
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
-        robot_model = ArmModel[robot_model.upper()]
-        robot_controller = ArmController[robot_controller.upper()]
-        num_joints = ArmInfo[robot_model]["num_joints"]
+        robot_model = RobotModel[robot_model.upper()]
+        robot_controller = RobotController[robot_controller.upper()]
+        num_joints = RobotInfo[robot_model]["num_joints"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
         if tcp_offset_pose is not None:
@@ -137,15 +137,19 @@ class XarmArm(Node):
 
     def __post_init__(self):
         example_request_params = {
-            ArmController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
-            ArmController.JOINT_POS: (RequestType.MOVEJ, {"target_jointq": np.zeros((self.num_joints,), dtype=self.dtype)}),
-            ArmController.TASK_VEL: (RequestType.SPEEDL, {"target_twist": np.zeros((6,), dtype=self.dtype)}),
-            ArmController.JOINT_VEL: (RequestType.SPEEDJ, {"target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype)}),
-        }[self.robot_controller][1]
-        example_request_params = {
-            **example_request_params,
-            "target_time": time.now(),
+            "target_pose": np.zeros((6,), dtype=self.dtype),
+            "target_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_twist": np.zeros((6,), dtype=self.dtype),
+            "target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
         }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pose",)),
+            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_jointq",)),
+            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_twist",)),
+            RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_jointqd",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
         example_robot_state = XArmSocket.bytes_to_state(dummy_data)
@@ -250,16 +254,16 @@ class XarmArm(Node):
             # arm.reset(wait=True)
             # arm.move_gohome(wait=True)
 
-            if self.robot_controller == ArmController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_POS:
                 arm.set_mode(1)  # 1: servo motion mode
-            elif self.robot_controller == ArmController.JOINT_POS:
+            elif self.robot_controller == RobotController.JOINT_POS:
                 arm.set_mode(1)  # 1: servo motion mode
             else:
                 raise ValueError(self.robot_controller)
             arm.set_state(0)
             time.sleep(0.1)
 
-            if self.robot_controller == ArmController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_POS:
                 code, curr_pose = arm.get_position_aa()
                 assert code == 0
                 curr_pose = np.array(curr_pose, dtype=self.dtype)
@@ -268,7 +272,7 @@ class XarmArm(Node):
                 curr_t = time.now()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
-            elif self.robot_controller == ArmController.JOINT_POS:
+            elif self.robot_controller == RobotController.JOINT_POS:
                 code, curr_jointq = arm.get_servo_angle()
                 assert code == 0
                 curr_jointq = np.array(curr_jointq[: self.num_joints], dtype=self.dtype)
@@ -285,11 +289,11 @@ class XarmArm(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                if self.robot_controller == ArmController.TASK_POS:
+                if self.robot_controller == RobotController.TASK_POS:
                     pose_command = pose_interp(t_now)
                     pose_command[:3] *= 1000.0  # convert m to mm
                     code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
-                elif self.robot_controller == ArmController.JOINT_POS:
+                elif self.robot_controller == RobotController.JOINT_POS:
                     jointq_command = lowpass_filter(target_jointq)
                     code = arm.set_servo_angle_j(jointq_command.tolist(), is_radian=True)
                 else:

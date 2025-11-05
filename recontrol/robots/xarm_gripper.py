@@ -19,11 +19,11 @@ except ImportError as e:
         XArmGripperDriver = None  # type: ignore
 
 
-class GripperController(Enum):
+class RobotController(Enum):
     TASK_POS = auto()
 
 
-class GripperModel(Enum):
+class RobotModel(Enum):
     LITE6 = auto()
     G1 = auto()
     G2 = auto()
@@ -58,8 +58,8 @@ class XarmGripper(Node):
         max_queue_size: int = 128,
         **kwargs,
     ):
-        robot_model = GripperModel[robot_model.upper()]
-        robot_controller = GripperController[robot_controller.upper()]
+        robot_model = RobotModel[robot_model.upper()]
+        robot_controller = RobotController[robot_controller.upper()]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_ip = robot_ip
@@ -72,12 +72,13 @@ class XarmGripper(Node):
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pos": np.zeros((1,), dtype=self.dtype)}),
-        }[self.robot_controller][1]
-        example_request_params = {
-            **example_request_params,
-            "target_time": time.now(),
+            "target_pos": np.zeros((1,), dtype=self.dtype),
         }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pos",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         example_robot_state = {
             "gripper_position": 0.0,
@@ -100,7 +101,7 @@ class XarmGripper(Node):
         gripper.start()
 
         try:
-            if self.robot_controller == GripperController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_POS:
                 curr_pos = self.gripper.state()["gripper_position"]
                 # pose interpolation
                 curr_t = time.now()
@@ -117,7 +118,7 @@ class XarmGripper(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                if self.robot_controller == GripperController.TASK_POS:
+                if self.robot_controller == RobotController.TASK_POS:
                     target_pos = pose_interp(t_now)[0]
                     gripper.moveL(target_pos)
                 else:

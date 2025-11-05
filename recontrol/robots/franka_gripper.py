@@ -19,12 +19,12 @@ except ImportError as e:
         FrankaGripperDriver = None  # type: ignore
 
 
-class GripperModel(Enum):
+class RobotModel(Enum):
     PANDA_HAND = auto()
     FR3_HAND = auto()
 
 
-class GripperController(Enum):
+class RobotController(Enum):
     TASK_POS = auto()
 
 
@@ -59,8 +59,8 @@ class FrankaGripper(Node):
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_ip = robot_ip
-        self.robot_model = GripperModel[robot_model.upper()]
-        self.robot_controller = GripperController[robot_controller.upper()]
+        self.robot_model = RobotModel[robot_model.upper()]
+        self.robot_controller = RobotController[robot_controller.upper()]
         self.home_to_open = home_to_open
         self.move_max_speed = move_max_speed
         self.driver = driver
@@ -69,12 +69,13 @@ class FrankaGripper(Node):
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pos": np.zeros((1,), dtype=self.dtype)}),
-        }[self.robot_controller][1]
-        example_request_params = {
-            **example_request_params,
-            "target_time": time.now(),
+            "target_pos": np.zeros((1,), dtype=self.dtype),
         }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pos",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         example_robot_state = {
             "gripper_position": 0.0,
@@ -97,7 +98,7 @@ class FrankaGripper(Node):
         gripper.start()
 
         try:
-            if self.robot_controller == GripperController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_POS:
                 curr_pos = self.gripper.state()["gripper_position"]
                 # pose interpolation
                 curr_t = time.now()
@@ -114,7 +115,7 @@ class FrankaGripper(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                if self.robot_controller == GripperController.TASK_POS:
+                if self.robot_controller == RobotController.TASK_POS:
                     target_pos = pose_interp(t_now)[0]
                     gripper.moveL(target_pos)
                 else:

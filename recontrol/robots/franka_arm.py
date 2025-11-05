@@ -21,12 +21,12 @@ except ImportError as e:
         FrankaDriver = None  # type: ignore
 
 
-class ArmModel(Enum):
+class RobotModel(Enum):
     FR3 = auto()
     PANDA = auto()
 
 
-class ArmController(Enum):
+class RobotController(Enum):
     TASK_POS = auto()
     JOINT_POS = auto()
     TASK_VEL = auto()
@@ -36,9 +36,9 @@ class ArmController(Enum):
     TASK_OSC = auto()
 
 
-ArmInfo = {
-    ArmModel.FR3: {"num_joints": 7},
-    ArmModel.PANDA: {"num_joints": 7},
+RobotInfo = {
+    RobotModel.FR3: {"num_joints": 7},
+    RobotModel.PANDA: {"num_joints": 7},
 }
 
 
@@ -87,9 +87,9 @@ class FrankaArm(Node):
         assert 0 < freq <= 1000
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
-        robot_model = ArmModel[robot_model.upper()]
-        robot_controller = ArmController[robot_controller.upper()]
-        num_joints = ArmInfo[robot_model]["num_joints"]
+        robot_model = RobotModel[robot_model.upper()]
+        robot_controller = RobotController[robot_controller.upper()]
+        num_joints = RobotInfo[robot_model]["num_joints"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
         if tcp_offset_pose is not None:
@@ -124,15 +124,19 @@ class FrankaArm(Node):
 
     def __post_init__(self):
         example_request_params = {
-            ArmController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((6,), dtype=self.dtype)}),
-            ArmController.JOINT_POS: (RequestType.MOVEJ, {"target_jointq": np.zeros((self.num_joints,), dtype=self.dtype)}),
-            ArmController.TASK_VEL: (RequestType.SPEEDL, {"target_twist": np.zeros((6,), dtype=self.dtype)}),
-            ArmController.JOINT_VEL: (RequestType.SPEEDJ, {"target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype)}),
-        }[self.robot_controller][1]
-        example_request_params = {
-            **example_request_params,
-            "target_time": time.now(),
+            "target_pose": np.zeros((6,), dtype=self.dtype),
+            "target_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_twist": np.zeros((6,), dtype=self.dtype),
+            "target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
         }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pose",)),
+            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_jointq",)),
+            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_twist",)),
+            RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_jointqd",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         example_robot_state = {
             "actual_tcp_pose": np.zeros((6,), dtype=self.dtype),
@@ -181,13 +185,13 @@ class FrankaArm(Node):
             if self.joints_init is not None:
                 arm.moveJ(self.joints_init, wait=True)
 
-            if self.robot_controller == ArmController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_POS:
                 curr_pose = arm.state()["actual_tcp_pose"]
                 # pose interpolation
                 curr_t = time.now()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
-            elif self.robot_controller == ArmController.JOINT_POS:
+            elif self.robot_controller == RobotController.JOINT_POS:
                 curr_jointq = arm.state()["actual_jointq"]
                 # joint filtering/smoothing
                 target_jointq = curr_jointq
@@ -202,10 +206,10 @@ class FrankaArm(Node):
             not_pub_ready = True
             while not self.exit_event.is_set():
                 t_now = time.now()
-                if self.robot_controller == ArmController.TASK_POS:
+                if self.robot_controller == RobotController.TASK_POS:
                     pose_command = pose_interp(t_now)
                     arm.moveL(pose_command)
-                elif self.robot_controller == ArmController.JOINT_POS:
+                elif self.robot_controller == RobotController.JOINT_POS:
                     joint_command = lowpass_filter(target_jointq)
                     arm.moveJ(joint_command)
                 else:

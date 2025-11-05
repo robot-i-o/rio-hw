@@ -19,11 +19,11 @@ except ImportError as e:
         WSGBinaryDriver = None  # type: ignore
 
 
-class GripperModel(Enum):
+class RobotModel(Enum):
     WSG50 = auto()
 
 
-class GripperController(Enum):
+class RobotController(Enum):
     TASK_POS = auto()
 
 
@@ -56,8 +56,8 @@ class WsgGripper(Node):
         max_queue_size: int = 128,
         **kwargs,
     ):
-        robot_model = GripperModel[robot_model.upper()]
-        robot_controller = GripperController[robot_controller.upper()]
+        robot_model = RobotModel[robot_model.upper()]
+        robot_controller = RobotController[robot_controller.upper()]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_ip = robot_ip
@@ -73,12 +73,13 @@ class WsgGripper(Node):
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pos": np.zeros((1,), dtype=self.dtype)}),
-        }[self.robot_controller][1]
-        example_request_params = {
-            **example_request_params,
-            "target_time": time.now(),
+            "target_pos": np.zeros((1,), dtype=self.dtype),
         }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pos",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         example_robot_state = {
             "gripper_state": 0,
@@ -110,7 +111,7 @@ class WsgGripper(Node):
             wsg.ack_fault()
             wsg.homing(positive_direction=self.home_to_open, wait=True)
 
-            if self.robot_controller == GripperController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_POS:
                 curr_info = wsg.script_query()
                 curr_pos = curr_info["position"]
                 # pose interpolation
@@ -128,7 +129,7 @@ class WsgGripper(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                if self.robot_controller == GripperController.TASK_POS:
+                if self.robot_controller == RobotController.TASK_POS:
                     target_pos = pose_interp(t_now)[0]
                     target_vel = (target_pos - pose_interp(t_now - dt)[0]) / dt
                     info = wsg.script_position_pd(position=target_pos, velocity=target_vel)
