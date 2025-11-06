@@ -201,7 +201,7 @@ class PoseTrajectoryInterpolator:
         return pose
 
 
-class MotorTrajectoryInterpolator:
+class TrajectoryInterpolator:
     def __init__(self, times: list | np.ndarray, values: list | np.ndarray):
         """Initialize the motor trajectory interpolator.
 
@@ -245,7 +245,7 @@ class MotorTrajectoryInterpolator:
         else:
             return self.interp.y
 
-    def trim(self, start_t: float, end_t: float) -> "MotorTrajectoryInterpolator":
+    def trim(self, start_t: float, end_t: float) -> "TrajectoryInterpolator":
         """Create new interpolator trimmed to specified time range.
 
         Args:
@@ -253,7 +253,7 @@ class MotorTrajectoryInterpolator:
             end_t: End time for trimmed trajectory
 
         Returns:
-            New MotorTrajectoryInterpolator instance
+            New TrajectoryInterpolator instance
         """
         assert start_t <= end_t, "Start time must be before end time"
         times = self.times
@@ -266,7 +266,7 @@ class MotorTrajectoryInterpolator:
 
         # Interpolate values at new timestamps
         all_values = self(all_times)
-        return MotorTrajectoryInterpolator(times=all_times, values=all_values)
+        return TrajectoryInterpolator(times=all_times, values=all_values)
 
     def drive_to_waypoint(
         self,
@@ -274,7 +274,7 @@ class MotorTrajectoryInterpolator:
         time,
         curr_time,
         max_speed=np.inf,
-    ) -> "MotorTrajectoryInterpolator":
+    ) -> "TrajectoryInterpolator":
         """Create new interpolator that drives to specified waypoint.
 
         Args:
@@ -284,7 +284,7 @@ class MotorTrajectoryInterpolator:
             max_speed: Maximum allowed speed for each dimension
 
         Returns:
-            New MotorTrajectoryInterpolator instance
+            New TrajectoryInterpolator instance
         """
         assert max_speed > 0, "Speed limit must be positive"
         time = max(time, curr_time)
@@ -303,7 +303,7 @@ class MotorTrajectoryInterpolator:
         times = np.append(trimmed_interp.times, [last_waypoint_time], axis=0)
         values = np.append(trimmed_interp.values, [value], axis=0)
 
-        return MotorTrajectoryInterpolator(times, values)
+        return TrajectoryInterpolator(times, values)
 
     def schedule_waypoint(
         self,
@@ -312,7 +312,7 @@ class MotorTrajectoryInterpolator:
         max_speed=np.inf,
         curr_time=None,
         last_waypoint_time=None,
-    ) -> "MotorTrajectoryInterpolator":
+    ) -> "TrajectoryInterpolator":
         """Schedule a new waypoint while respecting speed limits.
 
         Args:
@@ -323,7 +323,7 @@ class MotorTrajectoryInterpolator:
             last_waypoint_time: Time of last scheduled waypoint (optional)
 
         Returns:
-            New MotorTrajectoryInterpolator instance
+            New TrajectoryInterpolator instance
         """
         assert max_speed > 0, "Speed limit must be positive"
         if last_waypoint_time is not None:
@@ -377,7 +377,7 @@ class MotorTrajectoryInterpolator:
         times = np.append(trimmed_interp.times, [last_waypoint_time], axis=0)
         values = np.append(trimmed_interp.values, [value], axis=0)
 
-        return MotorTrajectoryInterpolator(times, values)
+        return TrajectoryInterpolator(times, values)
 
     def __call__(self, t: numbers.Number | np.ndarray) -> np.ndarray:
         """Interpolate values at specified time(s).
