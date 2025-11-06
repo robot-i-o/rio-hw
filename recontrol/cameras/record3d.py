@@ -79,23 +79,19 @@ class Record3d(Node):
         example_camera_state = {}
         example_camera_state["camera_receive_timestamp"] = 0.0
         example_camera_state["camera_capture_timestamp"] = 0.0
-
         if self.enable_color:
             shape = tuple(self.resolution)
             example_camera_state["color"] = np.zeros(shape=(*shape, 3), dtype=np.uint8)
-
         if self.enable_depth:
             shape = tuple(self.resolution)
             example_camera_state["depth"] = np.zeros(shape=(*shape, 1), dtype=np.float32)
-
         if self.enable_intrinsics:
             example_camera_state["intrinsics"] = np.zeros((3, 3), dtype=self.dtype)
-
         if self.enable_extrinsics:
             # 4x4 extrinsic matrix (camera pose in world coordinates)
             example_camera_state["extrinsics"] = np.eye(4, dtype=self.dtype)
 
-        self.example_request = {}
+        self.example_request = None
         self.example_data = {
             **example_camera_state,
             "timestamp": time.now(),

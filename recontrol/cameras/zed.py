@@ -95,7 +95,6 @@ class Zed:
         example_request_params = {
             "setting_enum": 0,
             "setting_value": 0,
-            "filename": "",
         }
 
         example_camera_state = {}
@@ -103,7 +102,6 @@ class Zed:
         example_camera_state["camera_capture_timestamp"] = 0.0
         if self.enable_color:
             h, w = self.resolution
-
             if self.concatenate_images:
                 # Side-by-side image
                 example_camera_state["color"] = np.zeros(shape=(h, w * 2, 3), dtype=np.uint8)
