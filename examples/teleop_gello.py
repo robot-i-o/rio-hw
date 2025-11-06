@@ -58,17 +58,17 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
     gello = teleop
     gello2 = teleop2
 
-    arm_target_jointq = arm.get_state()["actual_jointq"] if arm else None
-    arm2_target_jointq = arm2.get_state()["actual_jointq"] if arm2 else None
+    arm_target_joint_q = arm.get_state()["joint_q"] if arm else None
+    arm2_target_joint_q = arm2.get_state()["joint_q"] if arm2 else None
     gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
     gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
 
     print("Checking Gello alignment...")
-    gello_jointq = gello.get_state()["jointq"]
-    check_gello_alignment(gello_jointq, arm_target_jointq)
+    gello_joint_q = gello.get_state()["joint_q"]
+    check_gello_alignment(gello_joint_q, arm_target_joint_q)
     if arm2:
-        gello2_jointq = gello2.get_state()["jointq"] if gello2 else gello_jointq
-        check_gello_alignment(gello2_jointq, arm2_target_jointq)
+        gello2_joint_q = gello2.get_state()["joint_q"] if gello2 else gello_joint_q
+        check_gello_alignment(gello2_joint_q, arm2_target_joint_q)
 
     input("Press Enter to start")
     try:
@@ -86,21 +86,21 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
             time.precise_wait(t_sample)
             # get teleop command
             gello_state = gello.get_state()
-            gello_jointq = gello_state["jointq"]
+            gello_joint_q = gello_state["joint_q"]
             gello_gripper_pos = gello_state["gripper_position"]
             if gello2:
                 gello2_state = gello2.get_state()
-                gello2_jointq = gello2_state["jointq"]
+                gello2_joint_q = gello2_state["joint_q"]
                 gello2_gripper_pos = gello2_state["gripper_position"]
 
             if arm:
                 _t_cmd_target = t_cmd_target + args.arm_latency
-                arm_target_jointq = Robot.move_arm(arm, freq, _t_cmd_target, gello_jointq, arm_target_jointq)
+                arm_target_joint_q = Robot.move_arm(arm, freq, _t_cmd_target, gello_joint_q, arm_target_joint_q)
 
             if arm2:
-                _gello_jointq = gello2_jointq if gello2 else gello_jointq
+                _gello_joint_q = gello2_joint_q if gello2 else gello_joint_q
                 _t_cmd_target = t_cmd_target + args.arm_latency
-                arm2_target_jointq = Robot.move_arm(arm2, freq, _t_cmd_target, _gello_jointq, arm2_target_jointq)
+                arm2_target_joint_q = Robot.move_arm(arm2, freq, _t_cmd_target, _gello_joint_q, arm2_target_joint_q)
 
             if gripper:
                 _t_cmd_target = t_cmd_target + args.gripper_latency
@@ -116,7 +116,7 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
                 print(
                     f"t: {t_cycle_end - t_start:.3f}s",
                     "|",
-                    f"gello_jointq: {gello_jointq}",
+                    f"gello_joint_q: {gello_joint_q}",
                     "|",
                     f"gello_gripper_pos: {gello_gripper_pos:.2f}",
                 )

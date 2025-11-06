@@ -127,24 +127,24 @@ class UrArm(Node):
 
     def __post_init__(self):
         example_request_params = {
-            "target_pose": np.zeros((6,), dtype=self.dtype),
+            "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
         }
         request_params_keys = {
-            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pose",)),
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_tcp_pose",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
 
         rtde_r = RTDEReceiveInterface(hostname=self.robot_ip)
         receive_fn_map = {
-            "actual_tcp_pose": "ActualTCPPose",
-            "actual_tcp_speed": "ActualTCPSpeed",
-            "actual_jointq": "ActualQ",
-            "actual_jointqd": "ActualQd",
+            "tcp_pose": "ActualTCPPose",
+            "tcp_speed": "ActualTCPSpeed",
+            "joint_q": "ActualQ",
+            "joint_qd": "ActualQd",
             "target_tcp_pose": "TargetTCPPose",
             "target_tcp_speed": "TargetTCPSpeed",
-            "target_jointq": "TargetQ",
-            "target_jointqd": "TargetQd",
+            "target_joint_q": "TargetQ",
+            "target_joint_qd": "TargetQd",
         }
         example_robot_state = {}
         for k, v in receive_fn_map.items():
@@ -232,7 +232,7 @@ class UrArm(Node):
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
-                        target_pose = np.array(req.params.get("target_pose"), dtype=self.dtype)
+                        target_pose = np.array(req.params.get("target_tcp_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
                         pose_interp = pose_interp.schedule_waypoint(
@@ -266,13 +266,13 @@ class UrArm(Node):
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, pose, target_time):
-        pose = np.array(pose, dtype=self.dtype)
+    def moveL(self, target_tcp_pose, target_time):
+        target_tcp_pose = np.array(target_tcp_pose, dtype=self.dtype)
+        assert target_tcp_pose.shape == (6,)
         assert target_time > time.now()
-        assert pose.shape == (6,)
         req = {
             "type": RequestType.MOVEL.value,
-            "target_pose": pose,
+            "target_tcp_pose": target_tcp_pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)

@@ -124,29 +124,29 @@ class FrankaArm(Node):
 
     def __post_init__(self):
         example_request_params = {
-            "target_pose": np.zeros((6,), dtype=self.dtype),
-            "target_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_twist": np.zeros((6,), dtype=self.dtype),
-            "target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_tcp_twist": np.zeros((6,), dtype=self.dtype),
+            "target_joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
         }
         request_params_keys = {
-            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pose",)),
-            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_jointq",)),
-            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_twist",)),
-            RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_jointqd",)),
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_tcp_pose",)),
+            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
+            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_tcp_twist",)),
+            RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_joint_qd",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
 
         example_robot_state = {
-            "actual_tcp_pose": np.zeros((6,), dtype=self.dtype),
-            "actual_tcp_speed": np.zeros((6,), dtype=self.dtype),
-            "actual_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
-            "actual_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
+            "tcp_pose": np.zeros((6,), dtype=self.dtype),
+            "tcp_speed": np.zeros((6,), dtype=self.dtype),
+            "joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
+            "joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
             "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
             "target_tcp_speed": np.zeros((6,), dtype=self.dtype),
-            "target_jointq": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_jointqd": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
         }
 
         self.example_request = {
@@ -186,16 +186,16 @@ class FrankaArm(Node):
                 arm.moveJ(self.joints_init, wait=True)
 
             if self.robot_controller == RobotController.TASK_POS:
-                curr_pose = arm.state()["actual_tcp_pose"]
+                curr_pose = arm.state()["tcp_pose"]
                 # pose interpolation
                 curr_t = time.now()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
             elif self.robot_controller == RobotController.JOINT_POS:
-                curr_jointq = arm.state()["actual_jointq"]
+                curr_joint_q = arm.state()["joint_q"]
                 # joint filtering/smoothing
-                target_jointq = curr_jointq
-                lowpass_filter = LowPassFilter(alpha=self.joint_lowpass_alpha, initial=curr_jointq)
+                target_joint_q = curr_joint_q
+                lowpass_filter = LowPassFilter(alpha=self.joint_lowpass_alpha, initial=curr_joint_q)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -210,7 +210,7 @@ class FrankaArm(Node):
                     pose_command = pose_interp(t_now)
                     arm.moveL(pose_command)
                 elif self.robot_controller == RobotController.JOINT_POS:
-                    joint_command = lowpass_filter(target_jointq)
+                    joint_command = lowpass_filter(target_joint_q)
                     arm.moveJ(joint_command)
                 else:
                     raise ValueError(self.robot_controller)
@@ -236,7 +236,7 @@ class FrankaArm(Node):
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
-                        target_pose = np.array(req.params.get("target_pose"))
+                        target_pose = np.array(req.params.get("target_tcp_pose"))
                         target_time = float(req.params.get("target_time"))
                         curr_time = t_now + dt
                         pose_interp = pose_interp.schedule_waypoint(
@@ -249,7 +249,7 @@ class FrankaArm(Node):
                         )
                         last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
-                        target_jointq = np.array(req.params.get("target_jointq"))
+                        target_joint_q = np.array(req.params.get("target_joint_q"))
                     else:
                         raise ValueError(req.type)
                 rate.sleep()  # not using precise_sleep() spinning for higher frequency control
@@ -267,26 +267,26 @@ class FrankaArm(Node):
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_pose, target_time):
-        target_pose = np.array(target_pose)
-        assert target_pose.shape == (6,)
+    def moveL(self, target_tcp_pose, target_time):
+        target_tcp_pose = np.array(target_tcp_pose)
+        assert target_tcp_pose.shape == (6,)
         min_target_time = time.now() + 0.01
         if target_time < min_target_time:
             target_time = min_target_time
         req = {
             "type": RequestType.MOVEL.value,
-            "target_pose": target_pose,
+            "target_tcp_pose": target_tcp_pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)
 
-    def moveJ(self, target_joints, target_time):
-        target_joints = np.array(target_joints)
-        assert target_joints.shape == (self.num_joints,)
+    def moveJ(self, target_joint_q, target_time):
+        target_joint_q = np.array(target_joint_q)
+        assert target_joint_q.shape == (self.num_joints,)
         assert target_time > time.now()
         req = {
             "type": RequestType.MOVEJ.value,
-            "target_jointq": target_joints,
+            "target_joint_q": target_joint_q,
             "target_time": target_time,
         }
         self.request_queue.put(req)

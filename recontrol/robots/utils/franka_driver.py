@@ -85,13 +85,13 @@ class Franka(Protocol):
 
     def state(self): ...
 
-    def moveL(self, pose, wait=False): ...
+    def moveL(self, tcp_pose, wait=False): ...
 
-    def moveJ(self, jointq, wait=False): ...
+    def moveJ(self, joint_q, wait=False): ...
 
-    def impedanceL(self, pose, wait=False): ...
+    def impedanceL(self, tcp_pose, wait=False): ...
 
-    def impedanceJ(self, jointq, wait=False): ...
+    def impedanceJ(self, joint_q, wait=False): ...
 
 
 class FrankaDeoxys:
@@ -186,35 +186,35 @@ class FrankaPandapy:
         target_tcp_speed = O_dP_EE_d
 
         state = {
-            "actual_tcp_pose": actual_tcp_pose,
-            "actual_tcp_speed": actual_tcp_speed,
-            "actual_jointq": np.array(state.q.copy()),
-            "actual_jointqd": np.array(state.dq.copy()),
+            "tcp_pose": actual_tcp_pose,
+            "tcp_speed": actual_tcp_speed,
+            "joint_q": np.array(state.q.copy()),
+            "joint_qd": np.array(state.dq.copy()),
             "target_tcp_pose": target_tcp_pose,
             "target_tcp_speed": target_tcp_speed,
-            "target_jointq": np.array(state.q_d.copy()),
-            "target_jointqd": np.array(state.dq_d.copy()),
+            "target_joint_q": np.array(state.q_d.copy()),
+            "target_joint_qd": np.array(state.dq_d.copy()),
         }
         return state
 
-    def moveL(self, pose, wait=False):
-        return self.impedanceL(pose, wait=wait)
+    def moveL(self, tcp_pose, wait=False):
+        return self.impedanceL(tcp_pose, wait=wait)
 
-    def moveJ(self, jointq, wait=False):
-        if isinstance(jointq, np.ndarray):
-            jointq = jointq.tolist()
+    def moveJ(self, joint_q, wait=False):
+        if isinstance(joint_q, np.ndarray):
+            joint_q = joint_q.tolist()
         if wait:
-            self.panda.move_to_joint_position(jointq)
+            self.panda.move_to_joint_position(joint_q)
         else:
             if self.ctrl is None:
                 self._start_ctrl("joint_position")
-            self.ctrl.set_control(jointq)
+            self.ctrl.set_control(joint_q)
 
-    def impedanceL(self, pose, wait=False):
-        if isinstance(pose, np.ndarray):
-            pose = pose.tolist()
-        p = pose[:3]
-        q = st.Rotation.from_rotvec(pose[3:]).as_quat(scalar_first=False).tolist()
+    def impedanceL(self, tcp_pose, wait=False):
+        if isinstance(tcp_pose, np.ndarray):
+            tcp_pose = tcp_pose.tolist()
+        p = tcp_pose[:3]
+        q = st.Rotation.from_rotvec(tcp_pose[3:]).as_quat(scalar_first=False).tolist()
         if wait:
             self.panda.move_to_pose(p, q)
         else:
@@ -222,7 +222,7 @@ class FrankaPandapy:
                 self._start_ctrl("cartesian_impedance")
             self.ctrl.set_control(p, q)
 
-    def impedanceJ(self, jointq, wait=False):
+    def impedanceJ(self, joint_q, wait=False):
         raise NotImplementedError
 
 

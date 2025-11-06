@@ -162,8 +162,8 @@ class Robot:
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from recontrol import time
 
-    arm_target_pose = arm.get_state()["actual_tcp_pose"] if arm else None
-    arm2_target_pose = arm2.get_state()["actual_tcp_pose"] if arm2 else None
+    arm_target_pose = arm.get_state()["tcp_pose"] if arm else None
+    arm2_target_pose = arm2.get_state()["tcp_pose"] if arm2 else None
     gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
     gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
     teleop_mode = 0
