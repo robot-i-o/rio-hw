@@ -35,7 +35,7 @@ class Interface:
         gripper_pose = None
         if gp_x:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
-                teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
+                teleop_mode = (teleop_mode + 1) % 4  # 4 modes: 0, 1, 2, 3
                 t_last_mode_change = t_sample
         elif gp_a:
             gripper_pose = 1.0  # open
@@ -51,7 +51,7 @@ class Interface:
         - QE: Z translation
         - IJKL: XY rotation
         - UO: Z rotation
-        - 1/2/3: mode
+        - 0/1/2/3: mode
         - []: gripper open/close
         """
         alphanumeric_state = kb.get_state()["alphanumeric_state"]
@@ -100,12 +100,14 @@ class Interface:
                 pos_gripper = 1.0
 
             # teleop mode
-            if key == "1":
+            if key == "0":
                 teleop_mode = 0
-            elif key == "2":
+            elif key == "1":
                 teleop_mode = 1
-            elif key == "3":
+            elif key == "2":
                 teleop_mode = 2
+            elif key == "3":
+                teleop_mode = 3
 
         delta_tcp_pose = kb_motion
         return delta_tcp_pose, pos_gripper, t_last_mode_change, teleop_mode
@@ -119,7 +121,7 @@ class Interface:
         gripper_pos = None
         if sm_b0 and sm_b1:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
-                teleop_mode = (teleop_mode + 1) % 3  # 3 modes: 0, 1, 2
+                teleop_mode = (teleop_mode + 1) % 4  # 4 modes: 0, 1, 2, 3
                 t_last_mode_change = t_sample
         elif sm_b0:
             gripper_pos = 0.0  # close
@@ -143,6 +145,9 @@ class Robot:
         elif teleop_mode == 2:
             # rotation mode
             dpos[:] = 0
+        elif teleop_mode == 3:
+            # translation and rotation mode
+            pass
         else:
             raise RuntimeError(teleop_mode)
         drot = st.Rotation.from_euler("xyz", drot_xyz)
@@ -231,10 +236,7 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 def main(args):
     teleop_server, teleop_client = make_node(args.mw, "interfaces", args.teleop, asdict(args.teleop_cfg))
     arm_server, arm_client = make_node(args.mw, "robots", args.arm, asdict(args.arm_cfg))
-    if getattr(args, "gripper", None):
-        gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
-    else:
-        gripper_server, gripper_client = lambda: None, None
+    gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
     if getattr(args, "arm2", None):
         arm2_server, arm2_client = make_node(args.mw, "robots", args.arm2, asdict(args.arm2_cfg))
     else:
