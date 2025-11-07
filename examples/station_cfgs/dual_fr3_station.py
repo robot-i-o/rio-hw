@@ -42,7 +42,7 @@ class DualFr3Station:
         )
     )
 
-    gripper2: str | None = None
+    gripper2: str | None = "FrankaGripper"
     gripper2_cfg: GripperCfg = field(
         default_factory=lambda: DualFr3Station.GripperCfg(
             robot_ip="172.16.1.2",
