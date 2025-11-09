@@ -4,6 +4,7 @@ from .ur_arm import UrArmClient, UrArmServer
 from .wsg_gripper import WsgGripperClient, WsgGripperServer
 from .xarm_arm import XarmArmClient, XarmArmServer
 from .xarm_gripper import XarmGripperClient, XarmGripperServer
+from .xhand_hand import XhandHandClient, XhandHandServer
 
 __all__ = [
     "FrankaArm",
@@ -12,4 +13,5 @@ __all__ = [
     "WsgGripper",
     "XarmArm",
     "XarmGripper",
+    "XhandHand",
 ]
