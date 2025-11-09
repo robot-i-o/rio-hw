@@ -29,14 +29,12 @@ except ImportError as e:
     else:
         panda_py = None  # type: ignore
 try:
-    import polymetis  # type: ignore
-    import torch  # type: ignore
+    import zerorpc  # type: ignore
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
-        polymetis = None  # type: ignore
-        torch = None  # type: ignore
+        zerorpc = None  # type: ignore
 try:
     import pylibfranka  # type: ignore
 except ImportError as e:
@@ -227,7 +225,73 @@ class FrankaPandapy:
 
 
 class FrankaPolymetis:
-    pass
+    def __init__(
+        self,
+        robot_ip: str = "192.168.1.111",
+        robot_port: int = 50051,
+        **kwargs,
+    ):
+        self.robot_ip = robot_ip
+        self.robot_port = robot_port
+        self.cfg = FrankaCfg(**kwargs)
+        self.server_port = 4242
+        self.client = None
+        self._mode = None
+        self.Kx = [750.0, 750.0, 750.0, 15.0, 15.0, 15.0]  # Stiffness
+        self.Kxd = [37.0, 37.0, 37.0, 2.0, 2.0, 2.0]  # Damping
+        self.Kq = [20.0, 30.0, 25.0, 25.0, 15.0, 10.0, 10.0]  # Joint stiffness
+        self.Kqd = [1.0, 1.5, 1.0, 1.0, 0.5, 0.5, 0.5]  # Joint damping
+
+    def start(self):
+        if zerorpc is None:
+            raise ImportError("zerorpc is not installed.")
+        self.client = zerorpc.Client(heartbeat=20, timeout=300)
+        self.client.connect(f"tcp://{self.robot_ip}:{self.server_port}")
+
+    def stop(self):
+        if self.client is not None:
+            if self._mode is not None:
+                self.client.terminate_current_policy()
+            self.client.close()
+
+    def state(self):
+        ee_pose = np.array(self.client.get_ee_pose())  # [x, y, z, rx, ry, rz]
+        joint_pos = np.array(self.client.get_joint_positions())
+        joint_vel = np.array(self.client.get_joint_velocities())
+
+        state = {
+            "tcp_pose": ee_pose,
+            "tcp_speed": np.zeros(6),  # Not available from server
+            "joint_q": joint_pos,
+            "joint_qd": joint_vel,
+            "target_tcp_pose": ee_pose.copy(),  # Use current as target
+            "target_tcp_speed": np.zeros(6),
+            "target_joint_q": joint_pos.copy(),
+            "target_joint_qd": joint_vel.copy(),
+        }
+        return state
+
+    def moveL(self, pose, wait=False):
+        if isinstance(pose, np.ndarray):
+            pose = pose.tolist()
+
+        if self._mode != "cartesian":
+            self.client.start_cartesian_impedance(self.Kx, self.Kxd)
+            self._mode = "cartesian"
+
+        self.client.update_desired_ee_pose(pose)
+
+    def moveJ(self, jointq, wait=False):
+        if isinstance(jointq, np.ndarray):
+            jointq = jointq.tolist()
+
+        if self._mode != "joint":
+            if self._mode is not None:
+                self.client.terminate_current_policy()
+            self.client.start_joint_impedance(self.Kq, self.Kqd)
+            self._mode = "joint"
+
+        self.client.update_desired_joint_positions(jointq)
 
 
 class FrankaPylibfranka:
@@ -251,24 +315,42 @@ def FrankaDriver(driver: str, *args, **kwargs):
 
 class FrankaGripperDriver:
     def __init__(self, driver: str, *, robot_ip: str = "192.168.1.111", **kwargs):
-        assert driver in ("panda_py",)
+        assert driver in ("panda_py", "polymetis")
+        self.driver = driver
         self.robot_ip = robot_ip
         self.cfg = FrankaCfg(**kwargs)
+        self.server_port = 4243
 
     def start(self):
-        self.gripper = panda_py.libfranka.Gripper(self.robot_ip)
+        if self.driver == "panda_py":
+            self.gripper = panda_py.libfranka.Gripper(self.robot_ip)
 
-        # NOTE: read_once() seem to work real-time, so just read once at start right now
-        state = self.gripper.read_once()
-        self._gripper_max_width = state.max_width
-        self._gripper_width = state.width / self._gripper_max_width
+            # NOTE: read_once() seem to work real-time, so just read once at start right now
+            state = self.gripper.read_once()
+            self._gripper_max_width = state.max_width
+            self._gripper_width = state.width
 
-        if self.cfg.home_to_open:
-            self.gripper.homing()
-            self._gripper_width = self._gripper_max_width
+            if self.cfg.home_to_open:
+                self.gripper.homing()
+                self._gripper_width = self._gripper_max_width
+
+        elif self.driver == "polymetis":
+            self.gripper = zerorpc.Client(heartbeat=20, timeout=300)
+            self.gripper.connect(f"tcp://{self.robot_ip}:{self.server_port}")
+
+            # Get initial state
+            self._gripper_max_width = 0.08
+            self._gripper_width = self.gripper.get_gripper_width()
+
+            if self.cfg.home_to_open:
+                self.gripper.open_gripper()
+                self._gripper_width = self._gripper_max_width
 
     def stop(self):
-        self.gripper.stop()
+        if self.driver == "panda_py":
+            self.gripper.stop()
+        elif self.driver == "polymetis":
+            self.gripper.close()
 
     def state(self):
         # [0, max_width] -> [0, 1]
@@ -279,10 +361,15 @@ class FrankaGripperDriver:
         return robot_state
 
     def moveL(self, target_pos, wait=False):
-        # [0, 1] -> [0, max_width]
-        pos = target_pos / self._gripper_max_width
-        self._gripper_width = pos
-        self.gripper.move(pos, 1.0)
-        # self.gripper.grasp(pos, 0.1, 50.0)  # pos, speed, force
+        if self.driver == "panda_py":
+            # [0, 1] -> [0, max_width]
+            pos = target_pos * self._gripper_max_width
+            self._gripper_width = pos
+            self.gripper.move(pos, 1.0)
+        elif self.driver == "polymetis":
+            width = target_pos * self._gripper_max_width
+            self._gripper_width = width
+            self.gripper.goto_gripper(width, 0.1, 20.0)
+
         if wait:
             time.sleep(2.0)  # 2s should be enough time given max gripper speed/width
