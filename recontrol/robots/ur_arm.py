@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .. import time
-from ..interpolators import PoseTrajectoryInterpolator
+from ..filters import LowPassFilter
+from ..interpolators import PoseTrajectoryInterpolator, TrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
 from ..request import Request
@@ -40,6 +41,7 @@ class RobotController(Enum):
 
 class RequestType(Enum):
     MOVEL = auto()
+    MOVEJ = auto()
 
 
 class UrArm(Node):
@@ -60,11 +62,13 @@ class UrArm(Node):
         gain=300,
         max_pos_speed=0.25,  # 5% of max speed
         max_rot_speed=0.16,  # 5% of max speed
+        max_motor_speed=0.5236,  # 100% of max speed, 30 deg/s
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
         joints_init=None,
         joints_init_speed=1.05,
+        joints_lowpass_alpha=0.1,
         soft_real_time=False,
         dtype=np.float32,
         *,
@@ -78,11 +82,13 @@ class UrArm(Node):
             gain: [100, 2000] proportional gain for following target position
             max_pos_speed: m/s
             max_rot_speed: rad/s
+            max_motor_speed: rad/s
             tcp_offset_pose: 6d pose
             payload_mass: float
             payload_cog: 3d position, center of gravity
             joint_init:
             joint_init_speed: rad/s
+            joints_lowpass_alpha:
             soft_real_time: enables round-robin scheduling and real-time priority
             dtype:
         """
@@ -91,6 +97,7 @@ class UrArm(Node):
         assert 100 <= gain <= 2000
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        assert 0 < max_motor_speed
         robot_model = RobotModel[robot_model.upper()]
         robot_controller = RobotController[robot_controller.upper()]
         num_joints = RobotInfo[robot_model]["num_joints"]
@@ -116,6 +123,7 @@ class UrArm(Node):
         self.gain = gain
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
+        self.max_motor_speed = max_motor_speed
         self.tcp_offset_pose = tcp_offset_pose
         self.payload_mass = payload_mass
         self.payload_cog = payload_cog
@@ -128,9 +136,11 @@ class UrArm(Node):
     def __post_init__(self):
         example_request_params = {
             "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
         }
         request_params_keys = {
             RobotController.TASK_POS: (RequestType.MOVEL, ("target_tcp_pose",)),
+            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
@@ -191,6 +201,14 @@ class UrArm(Node):
                 curr_t = time.now()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+            elif self.robot_controller == RobotController.JOINT_POS:
+                curr_joint_q = rtde_r.getActualQ()
+                # joint interpolation
+                curr_t = time.now()
+                last_waypoint_time = curr_t
+                joint_interp = TrajectoryInterpolator(times=[curr_t], values=[curr_joint_q])
+                # joint filtering/smoothing
+                lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -206,6 +224,11 @@ class UrArm(Node):
                     pose_command = pose_interp(t_now)
                     vel, acc = 0.5, 0.5  # dummy, not used by ur5
                     assert rtde_c.servoL(pose_command, vel, acc, dt, self.lookahead_time, self.gain)
+                elif self.robot_controller == RobotController.JOINT_POS:
+                    joint_command = joint_interp(t_now)
+                    joint_command = lowpass_filter(joint_command)
+                    vel, acc = 2.0, 2.0  # rad/s, rad/s^2
+                    assert rtde_c.servoJ(joint_command, acc, vel, dt, self.lookahead_time, self.gain)
                 else:
                     raise ValueError(self.robot_controller)
                 robot_state = {}
@@ -244,6 +267,18 @@ class UrArm(Node):
                             last_waypoint_time=last_waypoint_time,
                         )
                         last_waypoint_time = target_time
+                    elif req.type == RequestType.MOVEJ:
+                        target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
+                        target_time = float(req.params.get("target_time"))
+                        curr_time = t_now + dt
+                        joint_interp = joint_interp.schedule_waypoint(
+                            value=target_joint_q,
+                            time=target_time,
+                            max_speed=self.max_motor_speed,
+                            curr_time=curr_time,
+                            last_waypoint_time=last_waypoint_time,
+                        )
+                        last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()
@@ -273,6 +308,17 @@ class UrArm(Node):
         req = {
             "type": RequestType.MOVEL.value,
             "target_tcp_pose": target_tcp_pose,
+            "target_time": target_time,
+        }
+        self.request_queue.put(req)
+
+    def moveJ(self, target_joint_q, target_time):
+        target_joint_q = np.array(target_joint_q, dtype=self.dtype)
+        assert target_joint_q.shape == (self.num_joints,)
+        assert target_time > time.now()
+        req = {
+            "type": RequestType.MOVEJ.value,
+            "target_joint_q": target_joint_q,
             "target_time": target_time,
         }
         self.request_queue.put(req)

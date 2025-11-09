@@ -8,7 +8,7 @@ import numpy as np
 
 from .. import time
 from ..filters import LowPassFilter
-from ..interpolators import PoseTrajectoryInterpolator
+from ..interpolators import PoseTrajectoryInterpolator, TrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
 from ..request import Request
@@ -73,12 +73,13 @@ class XarmArm(Node):
         robot_controller: str = "task_pos",
         max_pos_speed=0.25,  # 25% of max speed, 1 m/s
         max_rot_speed=0.785,  # 25% of max speed, 180 deg/s
+        max_motor_speed=3.1415,  # 100% of max speed, 180 deg/s
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
         joints_init=None,
         joints_init_speed=1.05,
-        joint_lowpass_alpha=0.1,
+        joints_lowpass_alpha=0.1,
         soft_real_time=False,
         dtype=np.float32,
         *,
@@ -90,18 +91,20 @@ class XarmArm(Node):
         Args:
             max_pos_speed: m/s
             max_rot_speed: rad/s
+            max_motor_speed: rad/s
             tcp_offset_pose: 6d pose
             payload_mass: float
             payload_cog: 3d position, center of gravity
             joint_init:
             joint_init_speed:
-            joint_lowpass_alpha:
+            joints_lowpass_alpha:
             soft_real_time: enables round-robin scheduling and real-time priority
             dtype:
         """
         assert 0 < freq <= 250
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        assert 0 < max_motor_speed
         robot_model = RobotModel[robot_model.upper()]
         robot_controller = RobotController[robot_controller.upper()]
         num_joints = RobotInfo[robot_model]["num_joints"]
@@ -125,12 +128,13 @@ class XarmArm(Node):
         self.num_joints = num_joints
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
+        self.max_motor_speed = max_motor_speed
         self.tcp_offset_pose = tcp_offset_pose
         self.payload_mass = payload_mass
         self.payload_cog = payload_cog
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
-        self.joint_lowpass_alpha = joint_lowpass_alpha
+        self.joints_lowpass_alpha = joints_lowpass_alpha
         self.soft_real_time = soft_real_time
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
@@ -276,9 +280,12 @@ class XarmArm(Node):
                 code, curr_joint_q = arm.get_servo_angle()
                 assert code == 0
                 curr_joint_q = np.array(curr_joint_q[: self.num_joints], dtype=self.dtype)
+                # joint interpolation
+                curr_t = time.now()
+                last_waypoint_time = curr_t
+                joint_interp = TrajectoryInterpolator(times=[curr_t], values=[curr_joint_q])
                 # joint filtering/smoothing
-                target_joint_q = curr_joint_q
-                lowpass_filter = LowPassFilter(alpha=self.joint_lowpass_alpha, initial=curr_joint_q)
+                lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -294,7 +301,8 @@ class XarmArm(Node):
                     pose_command[:3] *= 1000.0  # convert m to mm
                     code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
                 elif self.robot_controller == RobotController.JOINT_POS:
-                    joint_command = lowpass_filter(target_joint_q)
+                    joint_command = joint_interp(t_now)
+                    joint_command = lowpass_filter(joint_command)
                     code = arm.set_servo_angle_j(joint_command.tolist(), is_radian=True)
                 else:
                     raise ValueError(self.robot_controller)
@@ -325,6 +333,16 @@ class XarmArm(Node):
                         last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
                         target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
+                        target_time = float(req.params.get("target_time"))
+                        curr_time = t_now + dt
+                        joint_interp = joint_interp.schedule_waypoint(
+                            value=target_joint_q,
+                            time=target_time,
+                            max_speed=self.max_motor_speed,
+                            curr_time=curr_time,
+                            last_waypoint_time=last_waypoint_time,
+                        )
+                        last_waypoint_time = target_time
                     elif req.type == RequestType.SPEEDL:
                         raise NotImplementedError
                     elif req.type == RequestType.SPEEDJ:

@@ -7,7 +7,7 @@ import numpy as np
 
 from .. import time
 from ..filters import LowPassFilter
-from ..interpolators import PoseTrajectoryInterpolator
+from ..interpolators import PoseTrajectoryInterpolator, TrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
 from ..request import Request
@@ -69,12 +69,13 @@ class FrankaArm(Node):
         robot_controller: str = "task_pos",
         max_pos_speed=0.25,  # 12.5% of max speed, 2m/s
         max_rot_speed=0.657,  # 12.5% of max speed, 301 deg/s
+        max_motor_speed=2.618,  # 100% of max speed, 150 deg/s
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
         joints_init=None,
         joints_init_speed=1.05,
-        joint_lowpass_alpha=0.1,
+        joints_lowpass_alpha=0.1,
         soft_real_time=False,
         driver: str = "panda_py",
         robot_port: int = 50051,
@@ -84,9 +85,24 @@ class FrankaArm(Node):
         max_buffer_size: int | None = None,
         **kwargs,
     ):
+        """
+        Args:
+            max_pos_speed: m/s
+            max_rot_speed: rad/s
+            max_motor_speed: rad/s
+            tcp_offset_pose: 6d pose
+            payload_mass: float
+            payload_cog: 3d position, center of gravity
+            joint_init:
+            joint_init_speed:
+            joints_lowpass_alpha:
+            soft_real_time: enables round-robin scheduling and real-time priority
+            dtype:
+        """
         assert 0 < freq <= 1000
         assert 0 < max_pos_speed
         assert 0 < max_rot_speed
+        assert 0 < max_motor_speed
         robot_model = RobotModel[robot_model.upper()]
         robot_controller = RobotController[robot_controller.upper()]
         num_joints = RobotInfo[robot_model]["num_joints"]
@@ -110,12 +126,13 @@ class FrankaArm(Node):
         self.num_joints = num_joints
         self.max_pos_speed = max_pos_speed
         self.max_rot_speed = max_rot_speed
+        self.max_motor_speed = max_motor_speed
         self.tcp_offset_pose = tcp_offset_pose
         self.payload_mass = payload_mass
         self.payload_cog = payload_cog
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
-        self.joint_lowpass_alpha = joint_lowpass_alpha
+        self.joints_lowpass_alpha = joints_lowpass_alpha
         self.soft_real_time = soft_real_time
         self.driver = driver
         self.robot_port = robot_port
@@ -193,9 +210,12 @@ class FrankaArm(Node):
                 pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
             elif self.robot_controller == RobotController.JOINT_POS:
                 curr_joint_q = arm.state()["joint_q"]
+                # joint interpolation
+                curr_t = time.now()
+                last_waypoint_time = curr_t
+                joint_interp = TrajectoryInterpolator(times=[curr_t], values=[curr_joint_q])
                 # joint filtering/smoothing
-                target_joint_q = curr_joint_q
-                lowpass_filter = LowPassFilter(alpha=self.joint_lowpass_alpha, initial=curr_joint_q)
+                lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -210,7 +230,8 @@ class FrankaArm(Node):
                     pose_command = pose_interp(t_now)
                     arm.moveL(pose_command)
                 elif self.robot_controller == RobotController.JOINT_POS:
-                    joint_command = lowpass_filter(target_joint_q)
+                    joint_command = joint_interp(t_now)
+                    joint_command = lowpass_filter(joint_command)
                     arm.moveJ(joint_command)
                 else:
                     raise ValueError(self.robot_controller)
@@ -249,7 +270,17 @@ class FrankaArm(Node):
                         )
                         last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
-                        target_joint_q = np.array(req.params.get("target_joint_q"))
+                        target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
+                        target_time = float(req.params.get("target_time"))
+                        curr_time = t_now + dt
+                        joint_interp = joint_interp.schedule_waypoint(
+                            value=target_joint_q,
+                            time=target_time,
+                            max_speed=self.max_motor_speed,
+                            curr_time=curr_time,
+                            last_waypoint_time=last_waypoint_time,
+                        )
+                        last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
                 rate.sleep()  # not using precise_sleep() spinning for higher frequency control
