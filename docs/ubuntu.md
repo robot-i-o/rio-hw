@@ -15,7 +15,11 @@ Reference: [Real-time Ubuntu docs](https://documentation.ubuntu.com/real-time/la
 # Dependencies
 sudo apt update && sudo apt install -y \
     python3-dev \
-    build-essential
+    build-essential \
+    mokutil
+
+# Check that secure boot is disabled
+sudo mokutil --sb-state
 
 # Attach Ubuntu Pro (free personal plan allows up to 5 machines)
 sudo pro attach <YOUR-TOKEN>
@@ -60,20 +64,20 @@ sudo reboot
 ### 2) Verify install
 
 ```bash
-# Verify you're actually on an RT kernel
-uname -a
+# Verify you're actually on an RT kernel, "-realtime"
+uname -r
 # should show 1
 cat /sys/kernel/realtime
 
 # Check NVIDIA modules are present/loaded
-nvidia-smi || true
-lsmod | grep -i nvidia || true
+nvidia-smi
+lsmod | grep -i nvidia
 
 # Look for DKMS build issues
 sudo journalctl -k -b | grep -i -E "nvidia|dkms|module"
 
 # Confirm PREEMPT_RT config
-grep PREEMPT_RT /boot/config-$(uname -r) || true
+grep PREEMPT_RT /boot/config-$(uname -r)
 ```
 
 ### 3) Additional setup for NUC
