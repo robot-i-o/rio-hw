@@ -49,4 +49,8 @@ sudo dpkg -i libfranka*.deb
 
 - Do **not** use robot system version 5.8.0, see [here](https://github.com/facebookresearch/fairo/issues/1426#issuecomment-3167067195).
 
-- Guide Mode: Joints -> Unlock, Guiding Mode -> Free Move, Operations -> Programming, Base Light -> White. Then gently press the two side buttons on the Pilot-Grip.
+- Takes ~1 minute to start the robot after power cycling, light off -> flashing white light -> solid blue light.
+
+- To control the robot programmatically, activate FCI (Franka Control Interface): Joints -> Unlock, Topbar Menu "My Franka Robot" -> Activate FCI, should show solid green light.
+
+- To turn on Guide Mode: Joints -> Unlock, Guiding Mode -> Free Move, Operations -> Programming, should show solid white light. Then gently press the two side buttons on the Pilot-Grip.
