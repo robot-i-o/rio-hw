@@ -72,6 +72,7 @@ Arms:
   - [`docs/xarm.md`](docs/xarm.md)
 
 Hands:
+  - [`docs/leap_hand.md`](docs/leap_hand.md)
   - [`docs/xhand.md`](docs/xhand.md)
 
 # Usage
