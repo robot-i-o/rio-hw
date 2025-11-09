@@ -2,11 +2,14 @@
 
 ##This is based off of the dynamixel SDK
 import atexit
-import logging
+import logging as _logging
 import time
 from collections.abc import Sequence
 
 import numpy as np
+
+logging = _logging.getLogger(__name__)
+logging.setLevel(_logging.CRITICAL)
 
 PROTOCOL_VERSION = 2.0
 

@@ -60,12 +60,12 @@ class LeapHand(Node):
         joints_lowpass_alpha=0.1,
         dtype=np.float32,
         *,
-        freq: int = 60,
+        freq: int = 100,
         max_buffer_size: int | None = None,
         max_queue_size: int = 128,
         **kwargs,
     ):
-        assert 0 < freq <= 83
+        assert 0 < freq <= 500
         assert 0 < max_motor_speed
         robot_model = RobotModel[robot_model.upper()]
         robot_controller = RobotController[robot_controller.upper()]
@@ -95,7 +95,6 @@ class LeapHand(Node):
             "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
         }
         request_params_keys = {
-            RobotController.GUIDE: (None, ()),
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
@@ -122,7 +121,7 @@ class LeapHand(Node):
 
     def pubreq(self):
         hand = LeapHandV1Driver(port=self.robot_port, motor=self.motor, **self.robot_driver_kwargs)
-        hand.open()
+        hand.start()
 
         try:
             # init pose
@@ -153,8 +152,6 @@ class LeapHand(Node):
                     joint_command = joint_interp(t_now)
                     joint_command = lowpass_filter(joint_command)
                     hand.moveJ(joint_command.tolist())
-                elif self.robot_controller == RobotController.GUIDE:
-                    pass
                 else:
                     raise ValueError(self.robot_controller)
                 robot_state = hand.state()
@@ -196,7 +193,7 @@ class LeapHand(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            hand.close()
+            hand.stop()
 
     def get_state(self, k=None, out=None):
         if k is None:
