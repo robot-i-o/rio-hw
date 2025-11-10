@@ -118,7 +118,7 @@ class XhandHand(Node):
         guide_mode = self.robot_controller == RobotController.GUIDE
         mode = 19 if guide_mode else 3
         hand = XhandDriver(hand_id=self.robot_id, port=self.robot_port, mode=mode)
-        hand.open()
+        hand.start()
 
         try:
             # init pose
@@ -192,7 +192,7 @@ class XhandHand(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            hand.close()
+            hand.stop()
 
     def get_state(self, k=None, out=None):
         if k is None:

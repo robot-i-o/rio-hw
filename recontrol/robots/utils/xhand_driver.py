@@ -1,3 +1,4 @@
+import time
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -34,34 +35,31 @@ class XhandDriver:
         hand_id=0,
         port="/dev/ttyUSB0",
         protocol="RS485",
-        mode=3,  # 0: powerless, 3: position control mode, 5: powerful, 19: guide mode
-        kp=100,
+        mode=3,  # 0: powerless, 3: position control mode, 5: force control mode, 19: guide mode
+        num_joints=12,
+        # tor_max=300,
+        # kp=100,
+        tor_max=400,
+        kp=150,
         ki=0,
         kd=0,
-        tor_max=300,
     ):
         assert protocol in ("RS485", "EtherCAT")
         self._hand_id = hand_id
         self.port = port
         self.protocol = protocol
         self.mode = mode
+        self.num_joints = num_joints
+        self.tor_max = tor_max
         self.kp = kp
         self.ki = ki
         self.kd = kd
-        self.tor_max = tor_max
-        self.num_joints = 12
 
-    def open(self):
+    def start(self):
         self._device = xhand_control.XHandControl()
         self._hand_command = xhand_control.HandCommand_t()
         for i in range(self.num_joints):
-            self._hand_command.finger_command[i].id = i
-            self._hand_command.finger_command[i].kp = self.kp
-            self._hand_command.finger_command[i].ki = self.ki
-            self._hand_command.finger_command[i].kd = self.kd
             self._hand_command.finger_command[i].position = 0.0  # Start at 0
-            self._hand_command.finger_command[i].tor_max = self.tor_max
-            self._hand_command.finger_command[i].mode = self.mode
 
         device_identifier = {}
         if self.protocol == "RS485":
@@ -73,6 +71,9 @@ class XhandDriver:
         else:
             raise ValueError(self.protocol)
         self._open_device(device_identifier)
+
+        self._print_info()
+        self.set_hand_mode(self.mode)
 
     def _open_device(self, device_identifier: dict):
         # RS485
@@ -100,9 +101,6 @@ class XhandDriver:
         if rsp.error_code != 0:
             print(f"=@= open device error: {rsp.error_message}. Please check serial_port and connection")
             raise ConnectionError
-
-        self._print_info()
-        return True
 
     def _print_info(self):
         # # Get hand ID
@@ -138,16 +136,33 @@ class XhandDriver:
             print(f"=@= xhand get_serial_number error: {error_struct.error_message}")
         print(f"=@= xhand serial_number: {serial_number}")
 
-    def close(self):
+    def stop(self):
         if self._device is None:
-            return False
+            return
+        self.set_hand_mode(0)
         self._device.close_device()
         self._device = None
         self._hand_command = None
-        return True
 
-    def state(self):
-        error_struct, state = self._device.read_state(self._hand_id, True)
+    def set_hand_mode(self, mode: int):
+        assert mode in (0, 3, 5, 19)
+        kp, ki, kd, tor_max = self.kp, self.ki, self.kd, self.tor_max
+        if mode in (0, 19):
+            kp, ki, kd, tor_max = 0, 0, 0, 0
+
+        for i in range(self.num_joints):
+            self._hand_command.finger_command[i].id = i
+            self._hand_command.finger_command[i].kp = kp
+            self._hand_command.finger_command[i].ki = ki
+            self._hand_command.finger_command[i].kd = kd
+            self._hand_command.finger_command[i].tor_max = tor_max
+            self._hand_command.finger_command[i].mode = mode
+        self._send_position_command()
+        time.sleep(1.0)
+        self.mode = mode
+
+    def state(self, force_update=True):
+        error_struct, state = self._device.read_state(self._hand_id, force_update)
         if error_struct.error_code != 0:
             ignored = any(ignored_error in error_struct.error_message for ignored_error in IGNORED_ERRORS)
             if not ignored:
