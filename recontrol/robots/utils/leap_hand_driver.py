@@ -190,7 +190,7 @@ class LeapHandV1Driver:
         time.sleep(2.0)  # wait for hand to move to initial position
 
     def stop(self):
-        self.dxl_client.disconnect()
+        self.dxl_client.disconnect(force=True)
 
     def state(self):
         # pos = self.read_pos()

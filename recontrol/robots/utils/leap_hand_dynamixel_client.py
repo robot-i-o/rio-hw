@@ -179,10 +179,12 @@ class DynamixelClient:
         # Start with all motors enabled.  NO, I want to set settings before enabled
         # self.set_torque_enabled(self.motor_ids, True)
 
-    def disconnect(self):
+    def disconnect(self, force=False):
         """Disconnects from the Dynamixel device."""
         if not self.is_connected:
             return
+        if force:
+            return dynamixel_cleanup_handler()
         if self.port_handler.is_using:
             logging.error("Port handler in use; cannot disconnect.")
             return
