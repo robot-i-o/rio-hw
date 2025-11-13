@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 
 class Node(Protocol):
@@ -42,7 +42,8 @@ class Node(Protocol):
         self.max_queue_size = max_queue_size
         self.timeout = timeout
         self.verbose = verbose
-        self.__post_init__()
+        if TYPE_CHECKING:
+            self.__post_init__()
 
     def __post_init__(self):
         # set by node
