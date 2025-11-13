@@ -31,7 +31,7 @@ def get_connected_cameras():
         if device.get_info(rs.camera_info.name).lower() == "platform camera":
             continue
         serial = device.get_info(rs.camera_info.serial_number)
-        model = device.get_info(rs.camera_info.model_line)
+        model = device.get_info(rs.camera_info.product_line)
         if model in ("D400", "L500"):
             serials.append(serial)
             models.append(model)
