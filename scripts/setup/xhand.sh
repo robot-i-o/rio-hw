@@ -6,7 +6,14 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Install dependencies
+# Install dependencies (web GUI)
+sudo apt install -y \
+    openjdk-8-jdk \
+    python3-pip \
+    libboost-filesystem-dev \
+    nlohmann-json3-dev
+
+# Install dependencies (python package)
 sudo apt install -y \
     cmake \
     g++ \
