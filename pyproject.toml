@@ -48,6 +48,7 @@ cameras = [
     # "pyzed",  # zed
 ]
 interfaces = [
+    "avp_stream",
     "evdev; sys_platform != 'darwin'",  # gamepad
     "gello @ https://github.com/etaoxing/gello_software/archive/68530625dfbea9fefe8add23fd351ec7c0cb8516.tar.gz",
     "pynput", # keyboard

@@ -36,7 +36,7 @@ sudo ./scripts/setup/realsense.sh
 realsense-viewer
 ```
 
-Record3d: (iPhone only) Download the [Record3D iOS app](https://record3d.app/) and keep the app running in the background. You may need to pay for both "Full Version" and "Wi-Fi Streaming & RGBD Videos" in-app purchases or restore purchases.
+Record3d (iOS device): Download the [Record3D app](https://record3d.app/) and keep the app running in the background. You may need to pay for both "Full Version" and "Wi-Fi Streaming & RGBD Videos" in-app purchases or restore purchases.
 ```bash
 sudo ./scripts/setup/record3d.sh
 # Enable "Settings -> Higher-quality LiDAR recording" to capture data at higher resolution.
@@ -53,6 +53,8 @@ sudo chmod -R 777 /usr/local/zed/settings
 ```
 
 ### Interfaces
+
+AVP Stream (Apple Vision Pro): Download the [Tracking Streamer app](https://apps.apple.com/us/app/tracking-streamer/id6478969032). Run the app and click `Start` to stream tracking data over WiFI network. Click the digital crown to stop streaming.
 
 Gamepad: [`docs/gamepad.md`](docs/gamepad.md)
 
