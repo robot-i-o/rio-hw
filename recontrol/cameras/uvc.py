@@ -89,7 +89,7 @@ class Uvc(Node):
         cap = cv2.VideoCapture(int(self.serial))
 
         # set resolution and fps
-        w, h = self.resolution
+        h, w = self.resolution
         fps = self.freq
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
