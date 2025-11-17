@@ -20,14 +20,8 @@ except ImportError as e:
 
 
 def get_connected_cameras():
-    """Get list of connected ZED cameras."""
-    if sl is None:
-        return [], []
     serials, models = [], []
-    try:
-        cameras = sl.Camera.get_device_list()
-    except Exception:
-        return [], []
+    cameras = sl.Camera.get_device_list()
     for cam in cameras:
         serial = str(cam.serial_number)
         model = cam.camera_model.name
@@ -61,7 +55,7 @@ class Zed:
 
     def __init__(
         self,
-        serial_number: int | str,
+        serial: int | str,
         model: str,
         resolution: tuple[int, int] | None = (720, 1280),
         resolution_depth: tuple[int, int] | None = None,
@@ -79,7 +73,7 @@ class Zed:
         max_buffer_size: int | None = 30,
         **kwargs,
     ):
-        self.serial_number = int(serial_number) if isinstance(serial_number, str) else serial_number
+        self.serial = serial
         self.resolution = resolution
         self.enable_color = enable_color
         self.enable_depth = enable_depth
@@ -179,7 +173,7 @@ class Zed:
         init_params.camera_image_flip = flip_mode_map.get(self.image_flip, sl.FLIP_MODE.OFF)
 
         # Set serial number
-        init_params.set_from_serial_number(self.serial_number)
+        init_params.set_from_serial_number(int(self.serial))
 
         # Open camera
         err = cam.open(init_params)
