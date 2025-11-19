@@ -45,7 +45,7 @@ class Uvc(Node):
         self,
         serial: str | int,
         model: str,
-        resolution: tuple[int, int] | None = (720, 1280),
+        resolution: tuple[int, int] | None = (480, 640),
         resolution_depth: tuple[int, int] | None = None,
         enable_color: bool = True,
         enable_depth: bool = False,
@@ -110,11 +110,13 @@ class Uvc(Node):
                 receive_time = time.now()
                 capture_time = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
 
+                color_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
                 camera_state = {}
                 camera_state["camera_receive_timestamp"] = receive_time
                 camera_state["camera_capture_timestamp"] = capture_time
                 if self.enable_color:
-                    camera_state["color"] = frame
+                    camera_state["color"] = color_frame
 
                 # Store current state in ring buffer
                 data = {
