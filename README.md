@@ -91,6 +91,7 @@ Users only need to implement "pub/req" behavior in nodes through `Node.pub() / N
 ### Conventions
 
 - Quaternion ordering: `(x, y, z, w)`
+- SE3 matrix: `[R t; 0 1]` where `R` is 3x3 rotation matrix and `t` is 3x1 translation vector.
 - Coordinate system: `Z` up, right-handed
 - Linear velocity: COM, world frame
 - Angular velocity: world frame
