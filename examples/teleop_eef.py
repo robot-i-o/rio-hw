@@ -1,12 +1,20 @@
 import multiprocessing as mp
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 
 import numpy as np
 import scipy.spatial.transform as st
 import tyro
 
 from ._nodes import StationCfg, make_node
+
+
+class TeleopMode(Enum):
+    TRANSLATION_2D = 0
+    TRANSLATION = 1
+    ROTATION = 2
+    TRANSLATION_ROTATION = 3
 
 
 class Interface:
@@ -22,8 +30,8 @@ class Interface:
         - Left stick: XY translation
         - Right stick: XY rotation
         - LT/RT: Z translation/rotation
-        - up_button/B: gripper open/close
-        - Y button: change mode
+        - A/B (South/East) buttons: gripper open/close
+        - X (West) button: change mode
         """
         gp_motion = gp.get_motion_state_transformed()
 
@@ -31,17 +39,18 @@ class Interface:
         gp_a = gp.is_button_pressed(0)
         gp_b = gp.is_button_pressed(3)
 
-        delta_arm_pose = gp_motion
+        delta_tcp_pose = gp_motion
         gripper_pose = None
         if gp_x:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
-                teleop_mode = (teleop_mode + 1) % 4  # 4 modes: 0, 1, 2, 3
+                teleop_mode = (teleop_mode.value + 1) % len(TeleopMode)
+                teleop_mode = TeleopMode(teleop_mode)
                 t_last_mode_change = t_sample
         elif gp_a:
             gripper_pose = 1.0  # open
         elif gp_b:
             gripper_pose = 0.0  # close
-        return delta_arm_pose, gripper_pose, t_last_mode_change, teleop_mode
+        return delta_tcp_pose, gripper_pose, t_last_mode_change, teleop_mode
 
     @staticmethod
     def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
@@ -51,8 +60,8 @@ class Interface:
         - QE: Z translation
         - IJKL: XY rotation
         - UO: Z rotation
-        - 0/1/2/3: mode
         - []: gripper open/close
+        - 0/1/2/3: teleop mode
         """
         alphanumeric_state = kb.get_state()["alphanumeric_state"]
         # special_state = kb.get_state()["special_state"]
@@ -101,31 +110,39 @@ class Interface:
 
             # teleop mode
             if key == "0":
-                teleop_mode = 0
+                teleop_mode = TeleopMode.TRANSLATION_2D
             elif key == "1":
-                teleop_mode = 1
+                teleop_mode = TeleopMode.TRANSLATION
             elif key == "2":
-                teleop_mode = 2
+                teleop_mode = TeleopMode.ROTATION
             elif key == "3":
-                teleop_mode = 3
+                teleop_mode = TeleopMode.TRANSLATION_ROTATION
 
         delta_tcp_pose = kb_motion
         return delta_tcp_pose, pos_gripper, t_last_mode_change, teleop_mode
 
     @staticmethod
-    def poll_spacemouse(sm, t_sample, t_last_mode_change, teleop_mode):
-        sm_motion = sm.get_motion_state_transformed()
-        sm_b0 = sm.is_button_pressed(0)
-        sm_b1 = sm.is_button_pressed(1)
-        delta_tcp_pose = sm_motion
+    def poll_spacemouse(sp, t_sample, t_last_mode_change, teleop_mode):
+        """
+        Controls:
+        - controller cap: translation and rotation
+        - 0 button: gripper close
+        - 1 button: gripper open
+        - 0 and 1 buttons: change mode
+        """
+        sp_motion = sp.get_motion_state_transformed()
+        sp_b0 = sp.is_button_pressed(0)
+        sp_b1 = sp.is_button_pressed(1)
+        delta_tcp_pose = sp_motion
         gripper_pos = None
-        if sm_b0 and sm_b1:
+        if sp_b0 and sp_b1:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
-                teleop_mode = (teleop_mode + 1) % 4  # 4 modes: 0, 1, 2, 3
+                teleop_mode = (teleop_mode.value + 1) % len(TeleopMode)
+                teleop_mode = TeleopMode(teleop_mode)
                 t_last_mode_change = t_sample
-        elif sm_b0:
+        elif sp_b0:
             gripper_pos = 0.0  # close
-        elif sm_b1:
+        elif sp_b1:
             gripper_pos = 1.0  # open
         return delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode
 
@@ -135,24 +152,21 @@ class Robot:
     def move_arm(arm, freq, t_cmd_target, teleop_mode, delta_pose, target_pose, max_pos_speed, max_rot_speed):
         dpos = delta_pose[:3] * (max_pos_speed / freq)
         drot_xyz = delta_pose[3:] * (max_rot_speed / freq)
-        if teleop_mode == 0:
-            # 2D translation mode
+        if teleop_mode == TeleopMode.TRANSLATION_2D:
             drot_xyz[:] = 0
             dpos[2] = 0
-        elif teleop_mode == 1:
-            # translation mode
+        elif teleop_mode == TeleopMode.TRANSLATION:
             drot_xyz[:] = 0
-        elif teleop_mode == 2:
-            # rotation mode
+        elif teleop_mode == TeleopMode.ROTATION:
             dpos[:] = 0
-        elif teleop_mode == 3:
-            # translation and rotation mode
+        elif teleop_mode == TeleopMode.TRANSLATION_ROTATION:
             pass
         else:
             raise RuntimeError(teleop_mode)
         drot = st.Rotation.from_euler("xyz", drot_xyz)
+        rot = (drot * st.Rotation.from_rotvec(target_pose[3:])).as_rotvec()
         target_pose[:3] += dpos
-        target_pose[3:] = (drot * st.Rotation.from_rotvec(target_pose[3:])).as_rotvec()
+        target_pose[3:] = rot
         arm.moveL(target_pose.tolist(), t_cmd_target)
         return target_pose
 
@@ -171,7 +185,7 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     arm2_target_pose = arm2.get_state()["tcp_pose"] if arm2 else None
     gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
     gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
-    teleop_mode = 0
+    teleop_mode = TeleopMode.TRANSLATION_2D
     t_last_mode_change = time.now()
 
     input("Press Enter to start")
