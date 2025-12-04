@@ -1,13 +1,13 @@
 import multiprocessing as mp
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from enum import Enum
 
 import numpy as np
 import scipy.spatial.transform as st
 import tyro
 
-from ._real_env import StationCfg, make_node
+from ._real_env import RealEnv, StationCfg
 
 
 class TeleopMode(Enum):
@@ -248,27 +248,17 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 
 
 def main(args):
-    teleop_server, teleop_client = make_node(args.mw, "interfaces", args.teleop, asdict(args.teleop_cfg))
-    arm_server, arm_client = make_node(args.mw, "robots", args.arm, asdict(args.arm_cfg))
-    gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
-    if getattr(args, "arm2", None):
-        arm2_server, arm2_client = make_node(args.mw, "robots", args.arm2, asdict(args.arm2_cfg))
-    else:
-        arm2_server, arm2_client = lambda: None, None
-    if getattr(args, "gripper2", None):
-        gripper2_server, gripper2_client = make_node(args.mw, "robots", args.gripper2, asdict(args.gripper2_cfg))
-    else:
-        gripper2_server, gripper2_client = lambda: None, None
+    servers, clients = RealEnv.make_nodes(args)
 
     from recontrol.middleware import ServerManager
 
-    with ServerManager(args.mw, [teleop_server, arm_server, gripper_server, arm2_server, gripper2_server]):
+    with ServerManager(args.mw, list(servers.values())):
         with (
-            teleop_client() as teleop,
-            arm_client() if arm_client else nullcontext() as arm,
-            gripper_client() if gripper_client else nullcontext() as gripper,
-            arm2_client() if arm2_client else nullcontext() as arm2,
-            gripper2_client() if gripper2_client else nullcontext() as gripper2,
+            clients["teleop"]() as teleop,
+            clients["arm"]() if clients["arm"] else nullcontext() as arm,
+            clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
+            clients["arm2"]() if clients["arm2"] else nullcontext() as arm2,
+            clients["gripper2"]() if clients["gripper2"] else nullcontext() as gripper2,
         ):
             teleop_eef(args, teleop, arm, gripper, arm2, gripper2)
 

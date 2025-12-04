@@ -8,7 +8,7 @@ import yaml
 
 from recontrol import time
 
-from ._real_env import StationCfg, make_node
+from ._real_env import RealEnv, StationCfg
 
 
 class Robot:
@@ -50,7 +50,7 @@ def check_gello_alignment(gello_joints, target_joints, max_joint_delta=0.8):
     if max_delta > max_joint_delta:
         max_joint_idx = np.argmax(joint_delta)
         print(f"Joint {max_joint_idx + 1} has the largest delta: {np.rad2deg(max_delta):.1f}°")
-        raise RuntimeError("Align Gello to match robot initial pose. ")
+        raise RuntimeError("Align Gello to match robot initial pose")
     print(f"\n✓ Alignment OK (max delta: {np.rad2deg(max_delta):.1f}°)")
 
 
@@ -128,39 +128,32 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
 
 
 def main(args):
-    teleop_server, teleop_client = make_node(args.mw, "interfaces", args.teleop, asdict(args.teleop_cfg))
-    teleop2_server, teleop2_client = make_node(args.mw, "interfaces", args.teleop2, asdict(args.teleop2_cfg))
-
-    arm_cfg_dict = asdict(args.arm_cfg)
-    arm_cfg_dict["robot_controller"] = "joint_pos"
-    arm_cfg_dict["joints_init"] = args.teleop_cfg.start_joints[:-1]  # Exclude gripper position
-    arm_server, arm_client = make_node(args.mw, "robots", args.arm, arm_cfg_dict)
-
-    gripper_server, gripper_client = make_node(args.mw, "robots", args.gripper, asdict(args.gripper_cfg))
-
-    if getattr(args, "arm2", None):
-        arm2_cfg_dict = asdict(args.arm2_cfg)
-        arm2_cfg_dict["robot_controller"] = "joint_pos"
+    kwargs = {}
+    if hasattr(args, "arm"):
+        arm_cfg = asdict(args.arm_cfg)
+        arm_cfg["robot_controller"] = "joint_pos"
+        start_joints = args.teleop_cfg.start_joints
+        arm_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
+        kwargs["arm_cfg"] = arm_cfg
+    if hasattr(args, "arm2"):
+        arm2_cfg = asdict(args.arm2_cfg)
+        arm2_cfg["robot_controller"] = "joint_pos"
         start_joints = args.teleop2_cfg.start_joints if args.teleop2 else args.teleop_cfg.start_joints
-        arm2_cfg_dict["joints_init"] = start_joints[:-1]  # Exclude gripper position
-        arm2_server, arm2_client = make_node(args.mw, "robots", args.arm2, arm2_cfg_dict)
-    else:
-        arm2_server, arm2_client = lambda: None, None
-    if getattr(args, "gripper2", None):
-        gripper2_server, gripper2_client = make_node(args.mw, "robots", args.gripper2, asdict(args.gripper2_cfg))
-    else:
-        gripper2_server, gripper2_client = lambda: None, None
+        arm2_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
+        kwargs["arm2_cfg"] = arm2_cfg
+
+    servers, clients = RealEnv.make_nodes(args, **kwargs)
 
     from recontrol.middleware import ServerManager
 
-    with ServerManager(args.mw, [teleop_server, teleop2_server, arm_server, gripper_server, arm2_server, gripper2_server]):
+    with ServerManager(args.mw, list(servers.values())):
         with (
-            teleop_client() as teleop,
-            teleop2_client() if teleop2_client else nullcontext() as teleop2,
-            arm_client() if arm_client else nullcontext() as arm,
-            gripper_client() if gripper_client else nullcontext() as gripper,
-            arm2_client() if arm2_client else nullcontext() as arm2,
-            gripper2_client() if gripper2_client else nullcontext() as gripper2,
+            clients["teleop"]() as teleop,
+            clients["teleop2"]() if clients["teleop2"] else nullcontext() as teleop2,
+            clients["arm"]() if clients["arm"] else nullcontext() as arm,
+            clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
+            clients["arm2"]() if clients["arm2"] else nullcontext() as arm2,
+            clients["gripper2"]() if clients["gripper2"] else nullcontext() as gripper2,
         ):
             teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2)
 

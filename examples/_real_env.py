@@ -1,4 +1,5 @@
 import os
+from dataclasses import asdict
 from importlib import import_module
 
 from . import station_cfgs
@@ -9,7 +10,7 @@ StationCfg = getattr(station_cfgs, STATION)
 
 def make_node(mw, module, node, node_kwargs):
     if node is None:
-        node_server = lambda: None
+        node_server = None
         node_client = None
     else:
         module = import_module(f"recontrol.{module}")
@@ -20,3 +21,60 @@ def make_node(mw, module, node, node_kwargs):
         node_server = lambda: NodeServer(mw, **node_kwargs)
         node_client = lambda: NodeClient(mw, **node_kwargs)
     return node_server, node_client
+
+
+class RealEnv:
+    @classmethod
+    def make_nodes(cls, args, **kwargs):
+        servers = {}
+        clients = {}
+
+        # teleop
+        try:
+            teleop_cfg = kwargs.get("teleop_cfg", asdict(args.teleop_cfg))
+            servers["teleop"], clients["teleop"] = make_node(args.mw, "interfaces", args.teleop, teleop_cfg)
+        except (AttributeError, ImportError):
+            servers["teleop"], clients["teleop"] = None, None
+        try:
+            teleop2_cfg = kwargs.get("teleop2_cfg", asdict(args.teleop2_cfg))
+            servers["teleop2"], clients["teleop2"] = make_node(args.mw, "interfaces", args.teleop2, teleop2_cfg)
+        except (AttributeError, ImportError):
+            servers["teleop2"], clients["teleop2"] = None, None
+
+        # arm
+        try:
+            arm_cfg = kwargs.get("arm_cfg", asdict(args.arm_cfg))
+            servers["arm"], clients["arm"] = make_node(args.mw, "robots", args.arm, arm_cfg)
+        except (AttributeError, ImportError):
+            servers["arm"], clients["arm"] = None, None
+        try:
+            arm2_cfg = kwargs.get("arm2_cfg", asdict(args.arm2_cfg))
+            servers["arm2"], clients["arm2"] = make_node(args.mw, "robots", args.arm2, arm2_cfg)
+        except (AttributeError, ImportError):
+            servers["arm2"], clients["arm2"] = None, None
+
+        # gripper
+        try:
+            gripper_cfg = kwargs.get("gripper_cfg", asdict(args.gripper_cfg))
+            servers["gripper"], clients["gripper"] = make_node(args.mw, "robots", args.gripper, gripper_cfg)
+        except (AttributeError, ImportError):
+            servers["gripper"], clients["gripper"] = None, None
+        try:
+            gripper2_cfg = kwargs.get("gripper2_cfg", asdict(args.gripper2_cfg))
+            servers["gripper2"], clients["gripper2"] = make_node(args.mw, "robots", args.gripper2, gripper2_cfg)
+        except (AttributeError, ImportError):
+            servers["gripper2"], clients["gripper2"] = None, None
+
+        # hand
+        try:
+            hand_cfg = kwargs.get("hand_cfg", asdict(args.hand_cfg))
+            servers["hand"], clients["hand"] = make_node(args.mw, "robots", args.hand, hand_cfg)
+        except (AttributeError, ImportError):
+            servers["hand"], clients["hand"] = None, None
+        try:
+            hand2_cfg = kwargs.get("hand2_cfg", asdict(args.hand2_cfg))
+            servers["hand2"], clients["hand2"] = make_node(args.mw, "robots", args.hand2, hand2_cfg)
+        except (AttributeError, ImportError):
+            servers["hand2"], clients["hand2"] = None, None
+
+        return servers, clients
