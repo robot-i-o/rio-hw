@@ -8,7 +8,7 @@ import yaml
 
 from recontrol import time
 
-from ._nodes import StationCfg, make_node
+from ._real_env import StationCfg, make_node
 
 
 class Robot:

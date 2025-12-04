@@ -7,7 +7,7 @@ import numpy as np
 import scipy.spatial.transform as st
 import tyro
 
-from ._nodes import StationCfg, make_node
+from ._real_env import StationCfg, make_node
 
 
 class TeleopMode(Enum):
