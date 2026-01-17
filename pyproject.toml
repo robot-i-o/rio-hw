@@ -85,6 +85,7 @@ robots = [
     # "polymetis; sys_platform != 'darwin'",  # franka
     "pylibfranka; sys_platform != 'darwin'",  # franka
     "dynamixel_sdk",  # leap_hand
+    # "kortex_api @ https://artifactory.kinovaapps.com:443/artifactory/generic-public/kortex/API/2.8.0/kortex_api-2.8.0.post5-py3-none-any.whl",  # kinova
     "pyrobotiqgripper",  # robotiq gripper
     "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk==1.17.0",  # xarm
