@@ -7,9 +7,9 @@
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json" /></a>
 </p>
 
-# Recontrol
+# RIO-HW
 
-Recontrol 🎛️ is a real-time control library for cross-embodiment robot manipulation.
+RIO-HW 🎛️ is a real-time control library for cross-embodiment robot hardware.
 
 # Setup
 
@@ -86,7 +86,7 @@ A `Node` dynamically inherits from any given `Middleware` to handle automaticall
 4. `Node.req()` only handles requests, and `Node.pub()` publishes data in a separate worker.
 5. `Node.pub()` only publishes data, and `Node.req()` handles requests in a separate worker.
 
-Users only need to implement "pub/req" behavior in nodes through `Node.pub() / Node.req() / Node.pubreq()`. A "pub" loop should call `ring_buffer.put()` to publish data, and a "req" loop should call `request_queue.get()` to handle requests. A `Server` runs "pub/req" ("publish"/"request") and a `Client` resolves "sub/rep" ("subscribe"/"reply") automatically. See [`template.py`](recontrol/_template/template.py) for an example outline of a `Node`.
+Users only need to implement "pub/req" behavior in nodes through `Node.pub() / Node.req() / Node.pubreq()`. A "pub" loop should call `ring_buffer.put()` to publish data, and a "req" loop should call `request_queue.get()` to handle requests. A `Server` runs "pub/req" ("publish"/"request") and a `Client` resolves "sub/rep" ("subscribe"/"reply") automatically. See [`template.py`](rio_hw/_template/template.py) for an example outline of a `Node`.
 
 ### Conventions
 

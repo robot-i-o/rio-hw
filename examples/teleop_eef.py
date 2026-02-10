@@ -179,7 +179,7 @@ class Robot:
 
 
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
-    from recontrol import time
+    from rio_hw import time
 
     arm_target_pose = arm.get_state()["tcp_pose"] if arm else None
     arm2_target_pose = arm2.get_state()["tcp_pose"] if arm2 else None
@@ -250,7 +250,7 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
 def main(args):
     servers, clients = RealEnv.make_nodes(args)
 
-    from recontrol.middleware import ServerManager
+    from rio_hw.middleware import ServerManager
 
     with ServerManager(args.mw, list(servers.values())):
         with (

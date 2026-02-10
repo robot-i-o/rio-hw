@@ -13,7 +13,7 @@ def make_node(mw, module, node, node_kwargs):
         node_server = None
         node_client = None
     else:
-        module = import_module(f"recontrol.{module}")
+        module = import_module(f"rio_hw.{module}")
         NodeServer = getattr(module, f"{node}Server", None)
         NodeClient = getattr(module, f"{node}Client", None)
         if NodeServer is None or NodeClient is None:

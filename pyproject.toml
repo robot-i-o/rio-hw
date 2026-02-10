@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "recontrol"
-authors = [{ name = "recontrol developers", email = "etaoxing@users.noreply.github.com" }]
+name = "rio_hw"
+authors = [{ name = "rio developers", email = "etaoxing@users.noreply.github.com" }]
 description = "A real-time control library for cross-embodiment robot manipulation"
 license = "Apache-2.0"
 classifiers = [
@@ -74,7 +74,7 @@ robots = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["recontrol*"]
+include = ["rio_hw*"]
 
 [tool.setuptools.dynamic]
 version = { file = ["VERSION"] }
@@ -126,7 +126,7 @@ docstring-code-format = true
 [tool.pytest.ini_options]
 python_files = "test_*.py"
 testpaths = [
-    "recontrol/_tests",
+    "rio_hw/_tests",
 ]
 
 [tool.typos]

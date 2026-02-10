@@ -6,7 +6,7 @@ import numpy as np
 import tyro
 import yaml
 
-from recontrol import time
+from rio_hw import time
 
 from ._real_env import RealEnv, StationCfg
 
@@ -144,7 +144,7 @@ def main(args):
 
     servers, clients = RealEnv.make_nodes(args, **kwargs)
 
-    from recontrol.middleware import ServerManager
+    from rio_hw.middleware import ServerManager
 
     with ServerManager(args.mw, list(servers.values())):
         with (
