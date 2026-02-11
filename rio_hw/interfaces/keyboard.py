@@ -64,12 +64,16 @@ class Keyboard(Node):
 
         def on_press(key):
             if key is not None:
+                if getattr(key, "char", False) is None and key.vk == 0:  # handle unknown key <0>
+                    return
                 c, k = get_key(key)
                 with lock:
                     alphanumeric_keys.add(k) if c else special_keys.add(k)
 
         def on_release(key):
             if key is not None:
+                if getattr(key, "char", False) is None and key.vk == 0:  # handle unknown key <0>
+                    return
                 c, k = get_key(key)
                 with lock:
                     alphanumeric_keys.discard(k) if c else special_keys.discard(k)
