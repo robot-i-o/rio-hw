@@ -17,6 +17,13 @@ class ThreadServer(Node):
     def stop(self):
         pass
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
+
 
 class ThreadClient(th.Thread, Node):
     def __init__(
@@ -39,10 +46,10 @@ class ThreadClient(th.Thread, Node):
         self.__post_init__()
 
     def __post_init__(self):
-        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
-        self.request_queue = Queue(self.max_queue_size) if self.has_req else None
-        self.pub_ready_event = th.Event() if self.has_pub else None
-        self.req_ready_event = th.Event() if self.has_req else None
+        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.__pub__ else None
+        self.request_queue = Queue(self.max_queue_size) if self.__req__ else None
+        self.pub_ready_event = th.Event() if self.__pub__ else None
+        self.req_ready_event = th.Event() if self.__req__ else None
         self.exit_event = th.Event()
         self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_thread = super()  # self.run
@@ -59,3 +66,10 @@ class ThreadClient(th.Thread, Node):
         self.exit_event.set()
         self.worker_thread.join(self.timeout) if self.worker_thread is not None else None
         self.main_thread.join(self.timeout)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()

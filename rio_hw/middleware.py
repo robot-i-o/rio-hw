@@ -52,6 +52,9 @@ def Factory(role, mw, _Node):
     attrs["__factory_args__"] = (role, mw, node_module, node_name)
     attrs["__reduce__"] = __factory_reduce__
 
+    # NOTE: _Node and MwCls need to both have Node as a parent class
+    # so that mro() order used by type() correctly resolves _Node -> MwCls -> Node
+
     def class_factory(module, name, bases, attrs=None):
         Cls = type(name, bases, {})
         Cls.__module__ = module.__name__

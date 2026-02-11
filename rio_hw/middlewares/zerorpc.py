@@ -48,10 +48,10 @@ class ZeroRpcServer(th.Thread, Node):
 
         self.server_thread = th.Thread(target=run_server, daemon=self.daemon)
 
-        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
-        self.request_queue = Queue(self.max_queue_size) if self.has_req else None
-        self.pub_ready_event = th.Event() if self.has_pub else None
-        self.req_ready_event = th.Event() if self.has_req else None
+        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.__pub__ else None
+        self.request_queue = Queue(self.max_queue_size) if self.__req__ else None
+        self.pub_ready_event = th.Event() if self.__pub__ else None
+        self.req_ready_event = th.Event() if self.__req__ else None
         self.exit_event = th.Event()
         self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_thread = super()  # self.run
@@ -62,8 +62,8 @@ class ZeroRpcServer(th.Thread, Node):
         for fn_name in cls.__api__:
             fn_descriptor, fn = get_fn(cls, fn_name)
 
-            def fn_wrapper(*args, __fn=fn, **kwargs):
-                return PickleSerializer.pack(__fn(*args, **kwargs))
+            def fn_wrapper(*args, __fn__=fn, **kwargs):
+                return PickleSerializer.pack(__fn__(*args, **kwargs))
 
             wrap_fn_pack(cls, fn_name, fn_descriptor, fn, fn_wrapper)
 
@@ -84,6 +84,13 @@ class ZeroRpcServer(th.Thread, Node):
         self.main_thread.join(self.timeout)
 
         self.server_thread.join(self.timeout)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
 
 
 class ZeroRpcClient(Node):
@@ -109,8 +116,8 @@ class ZeroRpcClient(Node):
         # create wrappers to unpickle output of api methods
         for fn_name in self.__api__:
 
-            def fn_wrapper(self, *args, __fn_name=fn_name, **kwargs):
-                return PickleSerializer.unpack(self.proxy(__fn_name, *args, **kwargs))
+            def fn_wrapper(self, *args, __fn_name__=fn_name, **kwargs):
+                return PickleSerializer.unpack(self.proxy(__fn_name__, *args, **kwargs))
 
             wrap_fn_unpack(self, fn_name, fn_wrapper)
 
@@ -119,3 +126,10 @@ class ZeroRpcClient(Node):
 
     def stop(self):
         self.proxy.close()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()

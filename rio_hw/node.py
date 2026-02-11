@@ -3,16 +3,22 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 
 class Node(Protocol):
+    # user-level node attributes
     __nodename__: str
     __api__: list[str]
     __pub__: bool
     __req__: bool
+
+    pub: Callable | None
+    req: Callable | None
+    pubreq: Callable | None
 
     example_data: dict | None
     example_request: dict | None
     worker: Callable | None
     run: Callable
 
+    # middleware attributes
     ring_buffer: Any
     request_queue: Any
     pub_ready_event: Any
@@ -53,16 +59,16 @@ class Node(Protocol):
         self.run = self.pub
 
         # set by middleware
-        self.ring_buffer = ... if self.has_pub else None
-        self.request_queue = ... if self.has_req else None
-        self.pub_ready_event = ... if self.has_pub else None
-        self.req_ready_event = ... if self.has_req else None
+        self.ring_buffer = ... if self.__pub__ else None
+        self.request_queue = ... if self.__req__ else None
+        self.pub_ready_event = ... if self.__pub__ else None
+        self.req_ready_event = ... if self.__req__ else None
         self.exit_event = ...
         self.worker_thread = ... if self.worker is not None else None
         self.main_process = ...
 
     def pubreq(self) -> None:
-        """Optional, discouraged."""
+        """Optional."""
         ...
 
     def pub(self) -> None:
@@ -72,14 +78,6 @@ class Node(Protocol):
     def req(self) -> None:
         """Optional."""
         ...
-
-    @property
-    def has_pub(self) -> bool:
-        return self.__pub__
-
-    @property
-    def has_req(self) -> bool:
-        return self.__req__
 
     def start(self) -> None: ...
 

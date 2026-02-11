@@ -91,10 +91,10 @@ class ZenohServer(th.Thread, Node):
 
         self.server_thread = th.Thread(target=run_server, daemon=self.daemon)
 
-        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.has_pub else None
-        self.request_queue = Queue(self.max_queue_size) if self.has_req else None
-        self.pub_ready_event = th.Event() if self.has_pub else None
-        self.req_ready_event = th.Event() if self.has_req else None
+        self.ring_buffer = RingBuffer(self.max_buffer_size) if self.__pub__ else None
+        self.request_queue = Queue(self.max_queue_size) if self.__req__ else None
+        self.pub_ready_event = th.Event() if self.__pub__ else None
+        self.req_ready_event = th.Event() if self.__req__ else None
         self.exit_event = th.Event()
         self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_thread = super()  # self.run
@@ -117,6 +117,13 @@ class ZenohServer(th.Thread, Node):
         self.main_thread.join(self.timeout)
 
         self.server_thread.join(self.timeout)
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
 
 
 class ZenohClient(Node):
@@ -183,3 +190,10 @@ class ZenohClient(Node):
         self._session_cm.__exit__(None, None, None)  # close session context manager
         self._session_cm = None
         self._session = None
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()

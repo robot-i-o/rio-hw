@@ -19,6 +19,13 @@ class ShmfServer(Node):
     def stop(self):
         pass
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
+
 
 class ShmfClient(mp.Process, Node):
     def __init__(
@@ -56,7 +63,7 @@ class ShmfClient(mp.Process, Node):
         except ConnectionRefusedError:
             self.smm.start()
 
-        if self.has_pub:
+        if self.__pub__:
             assert self.example_data is not None
             self.ring_buffer = SharedMemoryRingBuffer.create_from_examples(
                 shm_manager=self.smm,
@@ -67,7 +74,7 @@ class ShmfClient(mp.Process, Node):
             )
         else:
             self.ring_buffer = None
-        if self.has_req:
+        if self.__req__:
             assert self.example_request is not None
             self.request_queue = SharedMemoryQueue.create_from_examples(
                 shm_manager=self.smm,
@@ -76,8 +83,8 @@ class ShmfClient(mp.Process, Node):
             )
         else:
             self.request_queue = None
-        self.pub_ready_event = mp.Event() if self.has_pub else None
-        self.req_ready_event = mp.Event() if self.has_req else None
+        self.pub_ready_event = mp.Event() if self.__pub__ else None
+        self.req_ready_event = mp.Event() if self.__req__ else None
         self.exit_event = mp.Event()
         self.worker_thread = th.Thread(target=self.worker, daemon=self.daemon) if self.worker is not None else None
         self.main_process = super()  # self.run
@@ -99,3 +106,10 @@ class ShmfClient(mp.Process, Node):
             self.smm.shutdown()
         except AttributeError:
             pass
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()

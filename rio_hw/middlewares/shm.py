@@ -21,6 +21,13 @@ class ShmServer(Node):
     def stop(self):
         pass
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
+
 
 class ShmClient(Node):
     def __init__(
@@ -37,7 +44,6 @@ class ShmClient(Node):
         **kwargs,
     ):
         self.daemon = daemon
-        super().__init__()
         self.shm_addr = shm_addr
         self.get_time_budget = get_time_budget
         self.freq = freq
@@ -64,8 +70,8 @@ class ShmClient(Node):
 
         self.ring_buffer = None
         self.request_queue = None
-        self.pub_ready_event = mp.Event() if self.has_pub else None
-        self.req_ready_event = mp.Event() if self.has_req else None
+        self.pub_ready_event = mp.Event() if self.__pub__ else None
+        self.req_ready_event = mp.Event() if self.__req__ else None
         self.exit_event = mp.Event()
         self.worker_thread = None  # created by mp_run()
         args = (child_conn, self.pub_ready_event, self.req_ready_event, self.exit_event)
@@ -98,6 +104,13 @@ class ShmClient(Node):
             except AttributeError:
                 pass
 
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_traceback):
+        self.stop()
+
     def __post_init__(self):
         self.run, self._run = self.mp_run, self.run
 
@@ -105,7 +118,7 @@ class ShmClient(Node):
         smm = SharedMemoryManager(address=(host, int(port)), authkey=b"abc")
         smm.connect()
 
-        if self.has_pub:
+        if self.__pub__:
             assert self.example_data is not None
             self.ring_buffer = SharedMemoryRingBuffer.create_from_examples(
                 shm_manager=smm,
@@ -116,7 +129,7 @@ class ShmClient(Node):
             )
         else:
             self.ring_buffer = None
-        if self.has_req:
+        if self.__req__:
             assert self.example_request is not None
             self.request_queue = SharedMemoryQueue.create_from_examples(
                 shm_manager=smm,
