@@ -13,7 +13,7 @@ RIO-HW 🎛️ is a real-time control library for cross-embodiment robot hardwar
 
 # Setup
 
-Tested on: Ubuntu 22.04 LTS w/ real-time kernel patch. See [`docs/ubuntu.md`](docs/ubuntu.md) for setup instructions.
+Tested on: Ubuntu 22.04 LTS (optional: real-time kernel patch). See [`docs/ubuntu.md`](docs/ubuntu.md) for setup instructions.
 
 ```bash
 # install uv
@@ -34,6 +34,7 @@ Realsense:
 sudo ./scripts/setup/realsense.sh
 # verify install
 realsense-viewer
+# Note: if you do not need L515 support, then you can use newer versions of librealsense2/pyrealsense2 >2.54.2
 ```
 
 Record3d (iOS device): Download the [Record3D app](https://record3d.app/) and keep the app running in the background. You may need to pay for both "Full Version" and "Wi-Fi Streaming & RGBD Videos" in-app purchases or restore purchases.

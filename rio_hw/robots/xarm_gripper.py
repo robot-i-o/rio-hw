@@ -102,7 +102,7 @@ class XarmGripper(Node):
 
         try:
             if self.robot_controller == RobotController.TASK_POS:
-                curr_pos = self.gripper.state()["gripper_position"]
+                curr_pos = gripper.state()["gripper_position"]
                 # pose interpolation
                 curr_t = time.now()
                 last_waypoint_time = curr_t

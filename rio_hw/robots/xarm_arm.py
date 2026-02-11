@@ -229,6 +229,7 @@ class XarmArm(Node):
         # arm.set_joint_maxacc(...)
         # arm.set_linear_spd_limit_factor(1.2)
         # arm.set_collision_sensitivity(0)
+        # arm.set_teach_sensitivity(5)
         # arm.save_conf()
         arm.connect()
         arm.clean_error()

@@ -6,20 +6,6 @@ import numpy as np
 import scipy.spatial.transform as st
 
 try:
-    import deoxys  # type: ignore
-except ImportError as e:
-    if TYPE_CHECKING:
-        raise e
-    else:
-        deoxys = None  # type: ignore
-try:
-    import franky  # type: ignore
-except ImportError as e:
-    if TYPE_CHECKING:
-        raise e
-    else:
-        franky = None  # type: ignore
-try:
     import panda_py  # type: ignore
     import panda_py.constants  # type: ignore
     import panda_py.controllers  # type: ignore
@@ -28,6 +14,7 @@ except ImportError as e:
         raise e
     else:
         panda_py = None  # type: ignore
+
 try:
     import zerorpc  # type: ignore
 except ImportError as e:
@@ -35,6 +22,7 @@ except ImportError as e:
         raise e
     else:
         zerorpc = None  # type: ignore
+
 try:
     import pylibfranka  # type: ignore
 except ImportError as e:
@@ -48,11 +36,6 @@ except ImportError as e:
 class FrankaCfg:
     # gripper
     home_to_open: bool = True
-
-    # deoxys
-
-    # franky
-    rel_dyn_factor: tuple[float, float, float] = (0.2, 0.1, 0.1)  # global vel/acc/jerk scaling
 
     # pandapy
     robot_model: str = "fr3"
@@ -92,14 +75,6 @@ class Franka(Protocol):
     def impedanceJ(self, joint_q, wait=False): ...
 
 
-class FrankaDeoxys:
-    pass
-
-
-class FrankaFranky:
-    pass
-
-
 class FrankaPandapy:
     def __init__(
         self,
@@ -117,25 +92,19 @@ class FrankaPandapy:
 
         self.panda = panda_py.Panda(self.robot_ip, cutoff_frequency=500.0)
         self.panda.set_default_behavior()
-        self.panda.get_robot().set_collision_behavior(
-            [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
-            [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
-            [100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
-            [100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
-        )
+        self.panda.get_robot().set_collision_behavior([100.0] * 7, [100.0] * 7, [100.0] * 6, [100.0] * 6)
         # ctrl is lazy initialized to make it easier to mix different modes
         self.ctrl: panda_py.controllers.TorqueController | None = None
         self.ctx = None
 
     def _start_ctrl(self, mode: str):
         if mode == "cartesian_impedance":
-            # translation, rotation stiffnss
-            # Kt, Kr = 210.0, 50.0
-            Kt, Kr = 800.0, 40.0
+            # translation, rotation stiffness
+            Kt, Kr = 600.0, 30.0
             ctrl = panda_py.controllers.CartesianImpedance(
                 impedance=np.diag([Kt, Kt, Kt, Kr, Kr, Kr]),
                 damping_ratio=1.0,
-                nullspace_stiffness=0.5,
+                nullspace_stiffness=1.0,
                 filter_coeff=1.0,
             )
         elif mode == "joint_position":
@@ -299,18 +268,13 @@ class FrankaPylibfranka:
 
 
 def FrankaDriver(driver: str, *args, **kwargs):
-    if driver == "deoxys":
-        return FrankaDeoxys(*args, **kwargs)
-    elif driver == "franky":
-        return FrankaFranky(*args, **kwargs)
-    elif driver == "panda_py":
+    if driver == "panda_py":
         return FrankaPandapy(*args, **kwargs)
-    elif driver == "polymetis":
+    if driver == "polymetis":
         return FrankaPolymetis(*args, **kwargs)
-    elif driver == "pylibfranka":
+    if driver == "pylibfranka":
         return FrankaPylibfranka(*args, **kwargs)
-    else:
-        raise ValueError(driver)
+    raise ValueError(driver)
 
 
 class FrankaGripperDriver:
@@ -324,12 +288,10 @@ class FrankaGripperDriver:
     def start(self):
         if self.driver == "panda_py":
             self.gripper = panda_py.libfranka.Gripper(self.robot_ip)
-
-            # NOTE: read_once() seem to work real-time, so just read once at start right now
+            # NOTE: read_once() does not seem to work real-time, so just read once at start right now
             state = self.gripper.read_once()
             self._gripper_max_width = state.max_width
             self._gripper_width = state.width
-
             if self.cfg.home_to_open:
                 self.gripper.homing()
                 self._gripper_width = self._gripper_max_width
@@ -337,20 +299,22 @@ class FrankaGripperDriver:
         elif self.driver == "polymetis":
             self.gripper = zerorpc.Client(heartbeat=20, timeout=300)
             self.gripper.connect(f"tcp://{self.robot_ip}:{self.server_port}")
-
             # Get initial state
             self._gripper_max_width = 0.08
             self._gripper_width = self.gripper.get_gripper_width()
-
             if self.cfg.home_to_open:
                 self.gripper.open_gripper()
                 self._gripper_width = self._gripper_max_width
+        else:
+            raise ValueError(self.driver)
 
     def stop(self):
         if self.driver == "panda_py":
             self.gripper.stop()
         elif self.driver == "polymetis":
             self.gripper.close()
+        else:
+            raise ValueError(self.driver)
 
     def state(self):
         # [0, max_width] -> [0, 1]
@@ -370,6 +334,7 @@ class FrankaGripperDriver:
             width = target_pos * self._gripper_max_width
             self._gripper_width = width
             self.gripper.goto_gripper(width, 0.1, 20.0)
-
+        else:
+            raise ValueError(self.driver)
         if wait:
             time.sleep(2.0)  # 2s should be enough time given max gripper speed/width

@@ -89,7 +89,7 @@ class XArmGripperDriver:
 
         self.gripper = arm
         if self.robot_model == "lite6":
-            self.gripper.set_mode(0)
+            # self.gripper.set_mode(0)
             self.gripper.set_state(0)
         elif self.robot_model in ("g1", "g2"):
             self.gripper.set_gripper_mode(0)
@@ -145,9 +145,10 @@ class XArmGripperDriver:
             raise ValueError(self.robot_model)
         return robot_state
 
-    def moveL(self, target_pos, wait=False):
+    def moveL(self, target_pos: float, wait=False):
+        target_pos = max(0.0, min(1.0, target_pos))  # clamp to [0, 1] range
         if self.robot_model == "lite6":
-            assert self.gripper.mode == 0
+            # assert self.gripper.mode == 0
             if target_pos > 0.5:
                 self.gripper.open_lite6_gripper(sync=wait)
                 self._lite6_gripper_pos = 1.0
@@ -156,15 +157,15 @@ class XArmGripperDriver:
                 self._lite6_gripper_pos = 0.0
         elif self.robot_model == "g1":
             # [0, 1] -> [-10, 850]
-            pos = target_pos * 860 - 10
+            pos = int(target_pos * 860 - 10)
             self.gripper.set_gripper_position(pos, speed=5000, wait=wait)  # speed: [0, 5000]
         elif self.robot_model == "g2":
             # [0, 1] -> [0, 84]
-            pos = target_pos * 84
+            pos = int(target_pos * 84)
             self.gripper.set_gripper_g2_position(pos, speed=225, force=50, wait=wait)  # speed: [15, 225], force: [1, 100]
         elif self.robot_model in ("robotiq_2f85", "robotiq_2f140"):
             # [0, 1] -> [255, 0]
-            pos = 255 - target_pos * 255  # 0 is open and 255 is closed
+            pos = int(255 - target_pos * 255)  # 0 is open and 255 is closed
             self.gripper.robotiq_set_position(pos, speed=255, force=255, wait=wait)  # speed: [0, 255], force: [0, 255]
         else:
             raise ValueError(self.robot_model)

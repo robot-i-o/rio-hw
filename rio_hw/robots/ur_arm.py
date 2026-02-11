@@ -130,6 +130,7 @@ class UrArm(Node):
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
         self.soft_real_time = soft_real_time
+        self.joints_lowpass_alpha = joints_lowpass_alpha
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
@@ -184,12 +185,12 @@ class UrArm(Node):
         try:
             # set parameters
             if self.tcp_offset_pose is not None:
-                self.rtde_c.setTcp(self.tcp_offset_pose)
+                rtde_c.setTcp(self.tcp_offset_pose)
             if self.payload_mass is not None:
                 if self.payload_cog is not None:
-                    assert self.rtde_c.setPayload(self.payload_mass, self.payload_cog)
+                    assert rtde_c.setPayload(self.payload_mass, self.payload_cog)
                 else:
-                    assert self.rtde_c.setPayload(self.payload_mass)
+                    assert rtde_c.setPayload(self.payload_mass)
 
             # init pose
             if self.joints_init is not None:
@@ -233,7 +234,7 @@ class UrArm(Node):
                     raise ValueError(self.robot_controller)
                 robot_state = {}
                 for k, v in self.receive_fn_map.items():
-                    robot_state[k] = np.array(getattr(self.rtde_r, f"get{v}")(), dtype=self.dtype)
+                    robot_state[k] = np.array(getattr(rtde_r, f"get{v}")(), dtype=self.dtype)
 
                 # Store current state in ring buffer
                 data = {
