@@ -45,7 +45,7 @@ cpack -G DEB
 sudo dpkg -i libfranka*.deb
 ```
 
-# FAQ
+## FAQ
 
 - Do **not** use robot system version 5.8.0, see [here](https://github.com/facebookresearch/fairo/issues/1426#issuecomment-3167067195).
 
