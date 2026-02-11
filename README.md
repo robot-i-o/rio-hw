@@ -73,10 +73,6 @@ Arms:
   - [`docs/ur.md`](docs/ur.md)
   - [`docs/xarm.md`](docs/xarm.md)
 
-Hands:
-  - [`docs/leap_hand.md`](docs/leap_hand.md)
-  - [`docs/xhand.md`](docs/xhand.md)
-
 # Usage
 
 A `Node` dynamically inherits from any given `Middleware` to handle automatically message passing, and factory functions produce `Server` and `Client` nodes. Each `Node` publishes data and handles requests, in separate loops or in the same loop.
