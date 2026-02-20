@@ -7,35 +7,43 @@ import numpy as np
 from .. import time
 from ..interpolators import PoseTrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
-from ..node import Node
 from ..request import Request
 
 try:
-    from .utils.xarm_driver import XArmGripperDriver
+    from .utils.robotiq_driver import RobotiqDriver
+    from .utils.robotiq_tcp_driver import RobotiqTcpDriver
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
-        XArmGripperDriver = None  # type: ignore
+        RobotiqDriver = None
+        RobotiqTcpDriver = None
 
 
-class RobotController(Enum):
-    TASK_POS = auto()
+GripperInfo = {
+    "robotiq_2f85": {"range": (0, 85)},
+    "robotiq_2f140": {"range": (0, 140)},
+}
 
 
-class RobotModel(Enum):
-    LITE6 = auto()
-    G1 = auto()
-    G2 = auto()
-    ROBOTIQ_2F85 = auto()
-    ROBOTIQ_2F140 = auto()
+class GripperController(Enum):
+    TASK_POS = "task_pos"
 
 
 class RequestType(Enum):
     MOVEL = auto()
 
 
-class XarmGripper(Node):
+class MODBUSMode(Enum):
+    SERIAL = auto()
+    TCPIP = auto()
+
+
+class RobotiqGripper:
+    """
+    Robot agnostic interface for Robotiq Gripper, controlled via serial port.
+    """
+
     __api__ = [
         "get_state",
         "get_all_state",
@@ -46,39 +54,53 @@ class XarmGripper(Node):
 
     def __init__(
         self,
-        robot_ip: str = "192.168.1.111",
-        robot_model: str = "g1",
+        port: str = "auto",
+        model: str = "robotiq_2f140",
+        control_mode: str = "bits",
+        calibrate: bool = False,
         robot_controller: str = "task_pos",
         move_max_speed: float | None = 3.0,
-        home_to_open: bool = True,
-        dtype=np.float32,
+        modbus_mode: str = "serial",
+        dtype=np.float64,
         *,
-        freq: int = 30,
+        freq: int = 50,
         max_buffer_size: int | None = None,
-        max_queue_size: int = 128,
+        max_queue_size: int = 1,
         **kwargs,
     ):
-        robot_model = RobotModel[robot_model.upper()]
-        robot_controller = RobotController[robot_controller.upper()]
+        """
+        Args:
+            port (str, optional): Serial port for the gripper. Defaults to "auto".
+            model (str, optional): Gripper model. Defaults to "robotiq_2f140".
+            control_mode (str, optional): Control mode for the gripper. Defaults to "bits".
+            calibrate (bool, optional): Whether to calibrate the gripper. Defaults to False.
+            robot_controller (str, optional): Robot controller type. Defaults to "task_pos".
+            dtype (_type_, optional): Data type for the gripper. Defaults to np.float64.
+            freq (int, optional): Defaults to 30.
+            max_buffer_size (int | None, optional): Defaults to None.
+            max_queue_size (int, optional): Defaults to 1024.
+        """
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
-        self.robot_ip = robot_ip
-        self.robot_model = robot_model
-        self.robot_controller = robot_controller
-        self.home_to_open = home_to_open
+        self.port = port
+        self.model = model
+        self.mm_range = GripperInfo[model]["range"]
+        self.control_mode = control_mode
+        self.calibrate = calibrate
+        self.robot_controller = GripperController(robot_controller)
         self.move_max_speed = move_max_speed
+        self.modbus_mode = MODBUSMode[modbus_mode.upper()]
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
 
     def __post_init__(self):
         example_request_params = {
-            "target_pos": np.zeros((1,), dtype=self.dtype),
-        }
-        request_params_keys = {
-            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pos",)),
+            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
         }[self.robot_controller][1]
-        example_request_params = {k: example_request_params[k] for k in request_params_keys}
-        example_request_params["target_time"] = time.now()
+        example_request_params = {
+            **example_request_params,
+            "target_time": time.now(),
+        }
 
         example_robot_state = {
             "gripper_position": 0.0,
@@ -97,11 +119,25 @@ class XarmGripper(Node):
         super().__post_init__()
 
     def pubreq(self):
-        gripper = XArmGripperDriver(self.robot_ip, self.robot_model.name.lower(), self.home_to_open)
-        gripper.start()
-
         try:
-            if self.robot_controller == RobotController.TASK_POS:
+            if self.modbus_mode == MODBUSMode.SERIAL:
+                gripper = RobotiqDriver(
+                    port=self.port,
+                    model=self.model,
+                    control_mode=self.control_mode,
+                    calibrate=self.calibrate,
+                    freq=self.freq,
+                )
+            elif self.modbus_mode == MODBUSMode.TCPIP:
+                gripper = RobotiqTcpDriver(
+                    robot_ip=self.port,
+                    freq=self.freq,
+                )
+            else:
+                raise ValueError(self.modbus_mode)
+            gripper.start()
+
+            if self.robot_controller == GripperController.TASK_POS:
                 curr_pos = gripper.state()["gripper_position"]
                 if self.move_max_speed is not None:
                     # pose interpolation
@@ -121,7 +157,7 @@ class XarmGripper(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                if self.robot_controller == RobotController.TASK_POS:
+                if self.robot_controller == GripperController.TASK_POS:
                     if pose_interp is not None:
                         pos_command = pose_interp(t_now)[0]
                     else:
@@ -153,7 +189,7 @@ class XarmGripper(Node):
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
-                        target_pos = np.array(req.params["target_pos"], dtype=self.dtype)[0]
+                        target_pos = np.array(req.params["target_pose"], dtype=self.dtype)[0]
                         target_time = float(req.params["target_time"])
                         if pose_interp is not None:
                             curr_time = t_now + dt
@@ -183,21 +219,21 @@ class XarmGripper(Node):
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_pos, target_time):
-        target_pos = np.array(target_pos, dtype=self.dtype)
-        assert target_pos.shape == (1,)
+    def moveL(self, target_pose, target_time):
+        target_pose = np.array(target_pose, dtype=self.dtype)
+        assert target_pose.shape == (1,)
         assert target_time > time.now()
         req = {
             "type": RequestType.MOVEL.value,
-            "target_pos": target_pos,
+            "target_pose": target_pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)
 
 
-def XarmGripperServer(mw, *args, **kwargs):
-    return ServerFactory(mw, XarmGripper, *args, **kwargs)
+def RobotiqGripperServer(mw, *args, **kwargs):
+    return ServerFactory(mw, RobotiqGripper, *args, **kwargs)
 
 
-def XarmGripperClient(mw, *args, **kwargs):
-    return ClientFactory(mw, XarmGripper, *args, **kwargs)
+def RobotiqGripperClient(mw, *args, **kwargs):
+    return ClientFactory(mw, RobotiqGripper, *args, **kwargs)

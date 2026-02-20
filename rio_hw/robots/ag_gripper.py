@@ -11,31 +11,23 @@ from ..node import Node
 from ..request import Request
 
 try:
-    from .utils.xarm_driver import XArmGripperDriver
+    from .utils.ag_driver import AgGripperDriver
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
-        XArmGripperDriver = None  # type: ignore
+        AgGripperDriver = None  # type: ignore
 
 
 class RobotController(Enum):
     TASK_POS = auto()
 
 
-class RobotModel(Enum):
-    LITE6 = auto()
-    G1 = auto()
-    G2 = auto()
-    ROBOTIQ_2F85 = auto()
-    ROBOTIQ_2F140 = auto()
-
-
 class RequestType(Enum):
     MOVEL = auto()
 
 
-class XarmGripper(Node):
+class AgGripper(Node):
     __api__ = [
         "get_state",
         "get_all_state",
@@ -46,27 +38,32 @@ class XarmGripper(Node):
 
     def __init__(
         self,
-        robot_ip: str = "192.168.1.111",
-        robot_model: str = "g1",
+        robot_ip: str = "192.168.0.15",
+        tcp_port: int = 54321,
+        member_id: int = 1,
+        timeout: float = 5.0,
         robot_controller: str = "task_pos",
         move_max_speed: float | None = 3.0,
-        home_to_open: bool = True,
+        force: int = 50,
+        calibrate: bool = True,
         dtype=np.float32,
         *,
         freq: int = 30,
         max_buffer_size: int | None = None,
-        max_queue_size: int = 128,
+        max_queue_size: int = 1,
         **kwargs,
     ):
-        robot_model = RobotModel[robot_model.upper()]
         robot_controller = RobotController[robot_controller.upper()]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_ip = robot_ip
-        self.robot_model = robot_model
+        self.tcp_port = tcp_port
+        self.member_id = member_id
+        self.timeout = timeout
         self.robot_controller = robot_controller
-        self.home_to_open = home_to_open
         self.move_max_speed = move_max_speed
+        self.force = force
+        self.calibrate = calibrate
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
 
@@ -94,15 +91,17 @@ class XarmGripper(Node):
         }
         self.worker = None
         self.run = self.pubreq
-        super().__post_init__()
+        return super().__post_init__()
 
     def pubreq(self):
-        gripper = XArmGripperDriver(self.robot_ip, self.robot_model.name.lower(), self.home_to_open)
-        gripper.start()
+        gripper = AgGripperDriver(self.robot_ip, self.tcp_port, self.member_id, self.timeout)
+        gripper.connect()
+        gripper.setup(force=self.force, do_calibration=self.calibrate)
 
         try:
             if self.robot_controller == RobotController.TASK_POS:
-                curr_pos = gripper.state()["gripper_position"]
+                # Get current position (normalized 0-1 from per-mille 0-1000)
+                curr_pos = gripper.state / 1000.0
                 if self.move_max_speed is not None:
                     # pose interpolation
                     curr_time = time.now()
@@ -123,15 +122,19 @@ class XarmGripper(Node):
                 # send command to robot
                 if self.robot_controller == RobotController.TASK_POS:
                     if pose_interp is not None:
-                        pos_command = pose_interp(t_now)[0]
+                        target_pos = pose_interp(t_now)[0]
+                        # Convert normalized (0-1) to per-mille (0-1000)
+                        target_permil = int(np.clip(target_pos, 0.0, 1.0) * 1000)
                     else:
-                        pos_command = np.copy(target_pos)
-                    gripper.moveL(pos_command)
+                        raise NotImplementedError
+                    gripper.set_position(target_permil)
                 else:
                     raise ValueError(self.robot_controller)
 
                 # get state from robot
-                robot_state = gripper.state()
+                robot_state = {
+                    "gripper_position": gripper.state / 1000.0,  # Normalize to 0-1
+                }
 
                 # Store current state in ring buffer
                 data = {
@@ -172,7 +175,7 @@ class XarmGripper(Node):
         except KeyboardInterrupt:
             pass
         finally:
-            gripper.stop()
+            gripper.close_conn()
 
     def get_state(self, k=None, out=None):
         if k is None:
@@ -195,9 +198,9 @@ class XarmGripper(Node):
         self.request_queue.put(req)
 
 
-def XarmGripperServer(mw, *args, **kwargs):
-    return ServerFactory(mw, XarmGripper, *args, **kwargs)
+def AgGripperServer(mw, *args, **kwargs):
+    return ServerFactory(mw, AgGripper, *args, **kwargs)
 
 
-def XarmGripperClient(mw, *args, **kwargs):
-    return ClientFactory(mw, XarmGripper, *args, **kwargs)
+def AgGripperClient(mw, *args, **kwargs):
+    return ClientFactory(mw, AgGripper, *args, **kwargs)

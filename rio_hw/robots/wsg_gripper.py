@@ -46,7 +46,7 @@ class WsgGripper(Node):
         robot_port: int = 1000,
         robot_model: str = "wsg50",
         robot_controller: str = "task_pos",
-        move_max_speed: float = 200.0,
+        move_max_speed: float | None = 200.0,
         use_meters: bool = True,
         home_to_open: bool = True,
         dtype=np.float32,
@@ -103,10 +103,9 @@ class WsgGripper(Node):
     def pubreq(self):
         gripper = WSGBinaryDriver(hostname=self.robot_ip, port=self.robot_port)
         gripper.start()
+        wsg = gripper
 
         try:
-            wsg = gripper
-
             # home gripper to initialize
             wsg.ack_fault()
             wsg.homing(positive_direction=self.home_to_open, wait=True)
@@ -114,10 +113,13 @@ class WsgGripper(Node):
             if self.robot_controller == RobotController.TASK_POS:
                 curr_info = wsg.script_query()
                 curr_pos = curr_info["position"]
-                # pose interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+                if self.move_max_speed is not None:
+                    # pose interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+                else:
+                    target_pos = np.copy(curr_pos)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -130,8 +132,11 @@ class WsgGripper(Node):
                 t_now = time.now()
                 # send command to robot
                 if self.robot_controller == RobotController.TASK_POS:
-                    target_pos = pose_interp(t_now)[0]
-                    target_vel = (target_pos - pose_interp(t_now - dt)[0]) / dt
+                    if pose_interp is not None:
+                        target_pos = pose_interp(t_now)[0]
+                        target_vel = (target_pos - pose_interp(t_now - dt)[0]) / dt
+                    else:
+                        raise NotImplementedError
                     info = wsg.script_position_pd(position=target_pos, velocity=target_vel)
                 else:
                     raise ValueError(self.robot_controller)
@@ -168,16 +173,17 @@ class WsgGripper(Node):
                         target_pos = req.params["target_pos"][0]
                         target_pos = target_pos * self.scale
                         target_time = float(req.params["target_time"])
-                        curr_time = t_now
-                        pose_interp = pose_interp.schedule_waypoint(
-                            pose=[target_pos, 0, 0, 0, 0, 0],
-                            time=target_time,
-                            max_pos_speed=self.move_max_speed,
-                            max_rot_speed=self.move_max_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if pose_interp is not None:
+                            curr_time = t_now
+                            pose_interp = pose_interp.schedule_waypoint(
+                                pose=[target_pos, 0, 0, 0, 0, 0],
+                                time=target_time,
+                                max_pos_speed=self.move_max_speed,
+                                max_rot_speed=self.move_max_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()

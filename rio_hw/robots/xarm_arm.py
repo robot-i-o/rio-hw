@@ -71,9 +71,9 @@ class XarmArm(Node):
         robot_ip: str = "192.168.1.111",
         robot_model: str = "xarm7",
         robot_controller: str = "task_pos",
-        max_pos_speed=0.25,  # 25% of max speed, 1 m/s
-        max_rot_speed=0.785,  # 25% of max speed, 180 deg/s
-        max_motor_speed=3.1415,  # 100% of max speed, 180 deg/s
+        max_pos_speed: float | None = 0.25,  # 25% of max speed, 1 m/s
+        max_rot_speed: float | None = 0.785,  # 25% of max speed, 180 deg/s
+        max_motor_speed: float | None = 3.1415,  # 100% of max speed, 180 deg/s
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
@@ -222,15 +222,6 @@ class XarmArm(Node):
             os.sched_setscheduler(0, os.SCHED_RR, os.sched_param(20))
 
         arm = XArmAPI(self.robot_ip, is_radian=True, report_type="real", do_not_open=True)
-        # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
-        # arm.set_tcp_jerk(7000)
-        # arm.set_tcp_maxacc(...)
-        # arm.set_joint_jerk(...)
-        # arm.set_joint_maxacc(...)
-        # arm.set_linear_spd_limit_factor(1.2)
-        # arm.set_collision_sensitivity(0)
-        # arm.set_teach_sensitivity(5)
-        # arm.save_conf()
         arm.connect()
         arm.clean_error()
         arm.clean_warn()
@@ -241,6 +232,16 @@ class XarmArm(Node):
                 raise RuntimeError("Check whether e-stop button is pressed.")
         arm.set_mode(0)
         arm.set_state(0)
+
+        # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
+        # arm.set_tcp_jerk(7000)
+        # arm.set_tcp_maxacc(...)
+        # arm.set_joint_jerk(28647, is_radian=True)
+        # arm.set_joint_maxacc(10000, is_radian=True)
+        arm.set_linear_spd_limit_factor(1.75)
+        # arm.set_collision_sensitivity(0)
+        # arm.set_teach_sensitivity(5)
+        # arm.save_conf()
 
         try:
             # set parameters
@@ -263,6 +264,8 @@ class XarmArm(Node):
                 arm.set_mode(1)  # 1: servo motion mode
             elif self.robot_controller == RobotController.JOINT_POS:
                 arm.set_mode(1)  # 1: servo motion mode
+            elif self.robot_controller == RobotController.JOINT_VEL:
+                arm.set_mode(4)  # 4: velocity control mode
             else:
                 raise ValueError(self.robot_controller)
             arm.set_state(0)
@@ -273,20 +276,28 @@ class XarmArm(Node):
                 assert code == 0
                 curr_pose = np.array(curr_pose, dtype=self.dtype)
                 curr_pose[:3] *= 0.001  # convert mm to m
-                # pose interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+                if self.max_pos_speed is not None and self.max_rot_speed is not None:
+                    # pose interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[curr_pose])
+                else:
+                    target_pose = np.copy(curr_pose)
             elif self.robot_controller == RobotController.JOINT_POS:
                 code, curr_joint_q = arm.get_servo_angle()
                 assert code == 0
                 curr_joint_q = np.array(curr_joint_q[: self.num_joints], dtype=self.dtype)
-                # joint interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                joint_interp = TrajectoryInterpolator(times=[curr_t], values=[curr_joint_q])
-                # joint filtering/smoothing
-                lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+                if self.max_motor_speed is not None:
+                    # joint interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    joint_interp = TrajectoryInterpolator(times=[curr_time], values=[curr_joint_q])
+                    # joint filtering/smoothing
+                    lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+                else:
+                    target_joint_q = np.copy(curr_joint_q)
+            elif self.robot_controller == RobotController.JOINT_VEL:
+                target_joint_qd = np.zeros(self.num_joints, dtype=self.dtype)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -298,16 +309,26 @@ class XarmArm(Node):
                 t_now = time.now()
                 # send command to robot
                 if self.robot_controller == RobotController.TASK_POS:
-                    pose_command = pose_interp(t_now)
+                    if pose_interp is not None:
+                        pose_command = pose_interp(t_now)
+                    else:
+                        pose_command = np.copy(target_pose)
                     pose_command[:3] *= 1000.0  # convert m to mm
-                    code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)  # mode=1
+                    code = arm.set_servo_cartesian_aa(pose_command.tolist(), speed=100, mvacc=200)
                 elif self.robot_controller == RobotController.JOINT_POS:
-                    joint_command = joint_interp(t_now)
-                    joint_command = lowpass_filter(joint_command)
-                    code = arm.set_servo_angle_j(joint_command.tolist(), is_radian=True)
+                    if joint_interp is not None:
+                        joint_command = joint_interp(t_now)
+                        joint_command = lowpass_filter(joint_command)
+                    else:
+                        joint_command = np.copy(target_joint_q)
+                    code = arm.set_servo_angle_j(joint_command.tolist(), speed=3.14, mvacc=20, is_radian=True)
+                elif self.robot_controller == RobotController.JOINT_VEL:
+                    joint_command = np.copy(target_joint_qd)
+                    code = arm.vc_set_joint_velocity(joint_command.tolist(), is_radian=True, is_sync=True, duration=0)
                 else:
                     raise ValueError(self.robot_controller)
                 if not (code == 0 and arm.error_code == 0 and arm.connected):
+                    _ = arm.get_err_warn_code(show=True, lang="en")
                     raise RuntimeError(f"code: {code}, error_code: {arm.error_code}, connected: {arm.connected}")
 
                 # Fetch requests from queue
@@ -322,32 +343,35 @@ class XarmArm(Node):
                     if req.type == RequestType.MOVEL:
                         target_pose = np.array(req.params.get("target_tcp_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
-                        curr_time = t_now + dt
-                        pose_interp = pose_interp.schedule_waypoint(
-                            pose=target_pose,
-                            time=target_time,
-                            max_pos_speed=self.max_pos_speed,
-                            max_rot_speed=self.max_rot_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if pose_interp is not None:
+                            curr_time = t_now + dt
+                            pose_interp = pose_interp.schedule_waypoint(
+                                pose=target_pose,
+                                time=target_time,
+                                max_pos_speed=self.max_pos_speed,
+                                max_rot_speed=self.max_rot_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
                         target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
-                        curr_time = t_now + dt
-                        joint_interp = joint_interp.schedule_waypoint(
-                            value=target_joint_q,
-                            time=target_time,
-                            max_speed=self.max_motor_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if joint_interp is not None:
+                            curr_time = t_now + dt
+                            joint_interp = joint_interp.schedule_waypoint(
+                                value=target_joint_q,
+                                time=target_time,
+                                max_speed=self.max_motor_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     elif req.type == RequestType.SPEEDL:
                         raise NotImplementedError
                     elif req.type == RequestType.SPEEDJ:
-                        raise NotImplementedError
+                        target_joint_qd = np.array(req.params.get("target_joint_qd"), dtype=self.dtype)
+                        target_time = float(req.params.get("target_time"))
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()

@@ -1,5 +1,4 @@
 import json
-import os
 import queue
 from enum import Enum, auto
 from typing import TYPE_CHECKING
@@ -22,9 +21,6 @@ except ImportError as e:
         rs = None  # type: ignore
 
 
-MAX_PATH_LENGTH = os.pathconf("/", "PC_PATH_MAX")
-
-
 def get_connected_cameras():
     serials, models = [], []
     for device in rs.context().devices:
@@ -39,6 +35,15 @@ def get_connected_cameras():
         # sort serials and models by serials
         serials, models = zip(*sorted(zip(serials, models, strict=True)), strict=True)
     return serials, models
+
+
+def enable_global_time(pipeline_profile):
+    device = pipeline_profile.get_device()
+    # Try all sensors until we find one that supports global_time. This ensures compatibility with different realsense models.
+    for sensor in device.query_sensors():
+        if sensor.supports(rs.option.global_time_enabled):
+            sensor.set_option(rs.option.global_time_enabled, 1)
+            return
 
 
 class CameraModel(Enum):
@@ -75,6 +80,7 @@ class Realsense(Node):
         enable_color: bool = True,
         enable_depth: bool = False,
         advanced_mode_config: str | None = None,
+        timeout_ms: float = 1000.0,
         dtype=np.float32,
         *,
         freq: int = 30,
@@ -89,6 +95,7 @@ class Realsense(Node):
         self.enable_color = enable_color
         self.enable_depth = enable_depth
         self.advanced_mode_config = advanced_mode_config
+        self.timeout_ms = timeout_ms
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
@@ -108,6 +115,7 @@ class Realsense(Node):
             shape = tuple(self.resolution)  # still use color resolution for depth after alignment
             # shape = tuple(self.resolution_depth)
             example_camera_state["depth"] = np.zeros(shape=shape, dtype=np.uint16)
+            example_camera_state["depth_units"] = 0.0
 
         self.example_request = {
             "type": next(iter(RequestType)).value,
@@ -125,6 +133,13 @@ class Realsense(Node):
         # limit threads
         threadpool_limits(1)
         cv2.setNumThreads(1)
+
+        # Reset cameras to ensure they are in a good state before starting streaming.
+        ctx = rs.context()
+        devices = ctx.query_devices()
+        for dev in devices:
+            dev.hardware_reset()
+        time.sleep(self.timeout_ms / 1000.0)
 
         fps = self.freq
         align = rs.align(rs.stream.color)
@@ -144,8 +159,7 @@ class Realsense(Node):
 
         # report global time
         # https://github.com/IntelRealSense/librealsense/pull/3909
-        d = pipeline_profile.get_device().first_color_sensor()
-        d.set_option(rs.option.global_time_enabled, 1)
+        enable_global_time(pipeline_profile)
 
         # setup advanced mode
         if self.advanced_mode_config is not None:
@@ -155,13 +169,22 @@ class Realsense(Node):
             advanced_mode = rs.rs400_advanced_mode(device)
             advanced_mode.load_json(json_text)
 
+        depth_units = 0.0
+        if self.enable_depth:
+            depth_sensor = pipeline_profile.get_device().first_depth_sensor()
+            depth_units = depth_sensor.get_depth_scale()
+
         try:
             # Main loop
             rate = time.Rate(self.freq)
             self.pub_ready_event.set()
             while not self.exit_event.is_set():
-                # wait for frames to come in
-                frameset = pipeline.wait_for_frames()
+                try:
+                    frameset = pipeline.wait_for_frames(timeout_ms=self.timeout_ms)
+                except RuntimeError:
+                    print("Frame timeout - camera may have disconnected")
+                    continue
+
                 receive_time = time.now()
                 # align frames to color
                 frameset = align.process(frameset)
@@ -171,13 +194,15 @@ class Realsense(Node):
                 camera_state["camera_receive_timestamp"] = receive_time
                 # realsense report in ms
                 camera_state["camera_capture_timestamp"] = frameset.get_timestamp() / 1000
+                # NOTE: need np.copy to stream in threaded mode: https://github.com/IntelRealSense/realsense-ros/issues/2460
                 if self.enable_color:
                     color_frame = frameset.get_color_frame()
-                    camera_state["color"] = np.asarray(color_frame.get_data())
+                    camera_state["color"] = np.copy(np.asarray(color_frame.get_data()))
                     t = color_frame.get_timestamp() / 1000
                     camera_state["camera_capture_timestamp"] = t
                 if self.enable_depth:
-                    camera_state["depth"] = np.asarray(frameset.get_depth_frame().get_data())
+                    camera_state["depth"] = np.copy(np.asarray(frameset.get_depth_frame().get_data()))
+                    camera_state["depth_units"] = depth_units
 
                 # Store current state in ring buffer
                 data = {

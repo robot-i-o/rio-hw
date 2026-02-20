@@ -46,7 +46,7 @@ class FrankaGripper(Node):
         robot_ip: str = "192.168.1.111",
         robot_model: str = "fr3_hand",
         robot_controller: str = "task_pos",
-        move_max_speed: float = 3.0,
+        move_max_speed: float | None = 3.0,
         home_to_open: bool = True,
         driver: str = "panda_py",
         dtype=np.float32,
@@ -100,10 +100,13 @@ class FrankaGripper(Node):
         try:
             if self.robot_controller == RobotController.TASK_POS:
                 curr_pos = gripper.state()["gripper_position"]
-                # pose interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+                if self.move_max_speed is not None:
+                    # pose interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+                else:
+                    target_pos = np.copy(curr_pos)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -116,8 +119,11 @@ class FrankaGripper(Node):
                 t_now = time.now()
                 # send command to robot
                 if self.robot_controller == RobotController.TASK_POS:
-                    target_pos = pose_interp(t_now)[0]
-                    gripper.moveL(target_pos)
+                    if pose_interp is not None:
+                        pos_command = pose_interp(t_now)[0]
+                    else:
+                        pos_command = np.copy(target_pos)
+                    gripper.moveL(pos_command)
                 else:
                     raise ValueError(self.robot_controller)
 
@@ -146,16 +152,17 @@ class FrankaGripper(Node):
                     if req.type == RequestType.MOVEL:
                         target_pos = np.array(req.params["target_pos"], dtype=self.dtype)[0]
                         target_time = float(req.params["target_time"])
-                        curr_time = t_now + dt
-                        pose_interp = pose_interp.schedule_waypoint(
-                            pose=[target_pos, 0, 0, 0, 0, 0],
-                            time=target_time,
-                            max_pos_speed=self.move_max_speed,
-                            max_rot_speed=self.move_max_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if pose_interp is not None:
+                            curr_time = t_now + dt
+                            pose_interp = pose_interp.schedule_waypoint(
+                                pose=[target_pos, 0, 0, 0, 0, 0],
+                                time=target_time,
+                                max_pos_speed=self.move_max_speed,
+                                max_rot_speed=self.move_max_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()

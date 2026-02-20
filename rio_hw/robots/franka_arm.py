@@ -67,9 +67,9 @@ class FrankaArm(Node):
         robot_ip: str = "192.168.1.111",
         robot_model: str = "fr3",
         robot_controller: str = "task_pos",
-        max_pos_speed=0.25,  # 12.5% of max speed, 2m/s
-        max_rot_speed=0.657,  # 12.5% of max speed, 301 deg/s
-        max_motor_speed=2.618,  # 100% of max speed, 150 deg/s
+        max_pos_speed: float | None = 0.25,  # 12.5% of max speed, 2m/s
+        max_rot_speed: float | None = 0.657,  # 12.5% of max speed, 301 deg/s
+        max_motor_speed: float | None = 2.618,  # 100% of max speed, 150 deg/s
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
@@ -204,18 +204,24 @@ class FrankaArm(Node):
 
             if self.robot_controller == RobotController.TASK_POS:
                 curr_pose = arm.state()["tcp_pose"]
-                # pose interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+                if self.max_pos_speed is not None and self.max_rot_speed is not None:
+                    # pose interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[curr_pose])
+                else:
+                    target_pose = np.copy(curr_pose)
             elif self.robot_controller == RobotController.JOINT_POS:
                 curr_joint_q = arm.state()["joint_q"]
-                # joint interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                joint_interp = TrajectoryInterpolator(times=[curr_t], values=[curr_joint_q])
-                # joint filtering/smoothing
-                lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+                if self.max_motor_speed is not None:
+                    # joint interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    joint_interp = TrajectoryInterpolator(times=[curr_time], values=[curr_joint_q])
+                    # joint filtering/smoothing
+                    lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+                else:
+                    target_joint_q = np.copy(curr_joint_q)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -227,11 +233,17 @@ class FrankaArm(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 if self.robot_controller == RobotController.TASK_POS:
-                    pose_command = pose_interp(t_now)
+                    if pose_interp is not None:
+                        pose_command = pose_interp(t_now)
+                    else:
+                        pose_command = np.copy(target_pose)
                     arm.moveL(pose_command)
                 elif self.robot_controller == RobotController.JOINT_POS:
-                    joint_command = joint_interp(t_now)
-                    joint_command = lowpass_filter(joint_command)
+                    if joint_interp is not None:
+                        joint_command = joint_interp(t_now)
+                        joint_command = lowpass_filter(joint_command)
+                    else:
+                        joint_command = np.copy(target_joint_q)
                     arm.moveJ(joint_command)
                 else:
                     raise ValueError(self.robot_controller)
@@ -259,28 +271,30 @@ class FrankaArm(Node):
                     if req.type == RequestType.MOVEL:
                         target_pose = np.array(req.params.get("target_tcp_pose"))
                         target_time = float(req.params.get("target_time"))
-                        curr_time = t_now + dt
-                        pose_interp = pose_interp.schedule_waypoint(
-                            pose=target_pose,
-                            time=target_time,
-                            max_pos_speed=self.max_pos_speed,
-                            max_rot_speed=self.max_rot_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if pose_interp is not None:
+                            curr_time = t_now + dt
+                            pose_interp = pose_interp.schedule_waypoint(
+                                pose=target_pose,
+                                time=target_time,
+                                max_pos_speed=self.max_pos_speed,
+                                max_rot_speed=self.max_rot_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
                         target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
-                        curr_time = t_now + dt
-                        joint_interp = joint_interp.schedule_waypoint(
-                            value=target_joint_q,
-                            time=target_time,
-                            max_speed=self.max_motor_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if joint_interp is not None:
+                            curr_time = t_now + dt
+                            joint_interp = joint_interp.schedule_waypoint(
+                                value=target_joint_q,
+                                time=target_time,
+                                max_speed=self.max_motor_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
                 rate.sleep()  # not using precise_sleep() spinning for higher frequency control

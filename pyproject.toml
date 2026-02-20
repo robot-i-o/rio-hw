@@ -65,8 +65,9 @@ middlewares = [
 robots = [
     # "panda_py; sys_platform != 'darwin'",  # franka
     # "polymetis; sys_platform != 'darwin'",  # franka
-    # "pylibfranka; sys_platform != 'darwin'",  # franka
+    "pylibfranka; sys_platform != 'darwin'",  # franka
     "dynamixel_sdk",  # leap_hand
+    "pyrobotiqgripper",  # robotiq gripper
     "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk==1.17.0",  # xarm
 ]

@@ -64,11 +64,11 @@ class Queue(Generic[T]):
         self.mutex = th.Lock()
 
     def qsize(self) -> int:
-        with self.read_lock:
+        with self.mutex:
             return len(self.buffer)
 
     def empty(self) -> bool:
-        with self.read_lock:
+        with self.mutex:
             return len(self.buffer) == 0
 
     def clear(self) -> None:

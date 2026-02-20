@@ -57,7 +57,7 @@ class Keyboard(Node):
             try:  # alphanumeric keyboard.KeyCode
                 c = True
                 k = ord(key.char)
-            except AttributeError:  # special keyboard.Key
+            except (AttributeError, TypeError):  # special keyboard.Key
                 c = False
                 k = key.value.vk
             return c, k

@@ -6,6 +6,9 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# NOTE: Make sure secure boot is disabled in BIOS if you run into issues with DKMS
+sudo mokutil --sb-state | grep -q "SecureBoot disabled" || { echo "ERROR: Secure Boot must be disabled in BIOS"; exit 1; }
+
 # https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md#installing-the-packages
 
 # Register the server's public key

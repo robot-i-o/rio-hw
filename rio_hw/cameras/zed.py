@@ -1,4 +1,5 @@
 import queue
+import sys
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -56,9 +57,7 @@ class Zed:
     def __init__(
         self,
         serial: int | str,
-        model: str,
         resolution: tuple[int, int] | None = (720, 1280),
-        resolution_depth: tuple[int, int] | None = None,
         enable_color: bool = True,
         enable_depth: bool = False,
         image_side: str | None = "LEFT",
@@ -77,6 +76,7 @@ class Zed:
         self.resolution = resolution
         self.enable_color = enable_color
         self.enable_depth = enable_depth
+        self.image_side = image_side
         self.concatenate_images = concatenate_images
         self.depth_mode = depth_mode
         self.depth_stabilization = depth_stabilization
@@ -148,6 +148,7 @@ class Zed:
         # Set FPS
         assert fps in (15, 30, 60, 100, 120)
         init_params.camera_fps = fps
+        init_params.grab_compute_capping_fps = self.freq  # cap the grab compute to ensure stable FPS
 
         # Set depth parameters
         depth_mode_map = {
@@ -196,7 +197,7 @@ class Zed:
 
         # Default resolution for retrieval
         zed_resolution = sl.Resolution(0, 0)
-
+        sys.stdout.flush()
         try:
             # Main loop
             rate = time.Rate(self.freq)
@@ -204,7 +205,8 @@ class Zed:
             while not self.exit_event.is_set():
                 # Grab frame
                 code = cam.grab(runtime_params)
-                if code == sl.ERROR_CODE.SUCCESS:
+
+                if code <= sl.ERROR_CODE.SUCCESS:
                     receive_time = time.now()
 
                     # Get capture timestamp (in milliseconds)
@@ -219,15 +221,16 @@ class Zed:
                     if self.enable_color:
                         if self.concatenate_images:
                             cam.retrieve_image(sbs_img, sl.VIEW.SIDE_BY_SIDE, resolution=zed_resolution)
-                            camera_state["color"] = sbs_img.get_data().copy()
+                            camera_state["color"] = sbs_img.get_data()[:, :, :3].copy()
                         elif self.image_side is not None:
                             cam.retrieve_image(left_img, sl.VIEW[self.image_side.upper()], resolution=zed_resolution)
-                            camera_state["color"] = left_img.get_data().copy()
+                            camera_state["color"] = left_img.get_data()[:, :, :3].copy()
                         else:
                             cam.retrieve_image(left_img, sl.VIEW.LEFT, resolution=zed_resolution)
                             cam.retrieve_image(right_img, sl.VIEW.RIGHT, resolution=zed_resolution)
-                            camera_state["color_left"] = left_img.get_data().copy()
-                            camera_state["color_right"] = right_img.get_data().copy()
+                            camera_state["color_left"] = left_img.get_data()[:, :, :3].copy()
+                            camera_state["color_right"] = right_img.get_data()[:, :, :3].copy()
+
                     # Retrieve depth map
                     if self.enable_depth:
                         if self.concatenate_images:

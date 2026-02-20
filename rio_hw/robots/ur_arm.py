@@ -60,9 +60,9 @@ class UrArm(Node):
         robot_controller: str = "task_pos",
         lookahead_time=0.1,
         gain=300,
-        max_pos_speed=0.25,  # 5% of max speed
-        max_rot_speed=0.16,  # 5% of max speed
-        max_motor_speed=0.5236,  # 100% of max speed, 30 deg/s
+        max_pos_speed: float | None = 0.25,  # 5% of max speed
+        max_rot_speed: float | None = 0.16,  # 5% of max speed
+        max_motor_speed: float | None = 3.14156,  # 100% of max speed, 180 deg/s
         tcp_offset_pose=None,
         payload_mass=None,
         payload_cog=None,
@@ -198,18 +198,24 @@ class UrArm(Node):
 
             if self.robot_controller == RobotController.TASK_POS:
                 curr_pose = rtde_r.getActualTCPPose()
-                # pose interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                pose_interp = PoseTrajectoryInterpolator(times=[curr_t], poses=[curr_pose])
+                if self.max_pos_speed is not None and self.max_rot_speed is not None:
+                    # pose interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[curr_pose])
+                else:
+                    target_pose = np.copy(curr_pose)
             elif self.robot_controller == RobotController.JOINT_POS:
                 curr_joint_q = rtde_r.getActualQ()
-                # joint interpolation
-                curr_t = time.now()
-                last_waypoint_time = curr_t
-                joint_interp = TrajectoryInterpolator(times=[curr_t], values=[curr_joint_q])
-                # joint filtering/smoothing
-                lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+                if self.max_motor_speed is not None:
+                    # joint interpolation
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    joint_interp = TrajectoryInterpolator(times=[curr_time], values=[curr_joint_q])
+                    # joint filtering/smoothing
+                    lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+                else:
+                    target_joint_q = np.copy(curr_joint_q)
             else:
                 raise ValueError(self.robot_controller)
 
@@ -222,12 +228,18 @@ class UrArm(Node):
                 t_now = time.now()
                 # send command to robot
                 if self.robot_controller == RobotController.TASK_POS:
-                    pose_command = pose_interp(t_now)
+                    if pose_interp is not None:
+                        pose_command = pose_interp(t_now)
+                    else:
+                        pose_command = np.copy(target_pose)
                     vel, acc = 0.5, 0.5  # dummy, not used by ur5
                     assert rtde_c.servoL(pose_command, vel, acc, dt, self.lookahead_time, self.gain)
                 elif self.robot_controller == RobotController.JOINT_POS:
-                    joint_command = joint_interp(t_now)
-                    joint_command = lowpass_filter(joint_command)
+                    if joint_interp is not None:
+                        joint_command = joint_interp(t_now)
+                        joint_command = lowpass_filter(joint_command)
+                    else:
+                        joint_command = np.copy(target_joint_q)
                     vel, acc = 2.0, 2.0  # rad/s, rad/s^2
                     assert rtde_c.servoJ(joint_command, acc, vel, dt, self.lookahead_time, self.gain)
                 else:
@@ -258,28 +270,30 @@ class UrArm(Node):
                     if req.type == RequestType.MOVEL:
                         target_pose = np.array(req.params.get("target_tcp_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
-                        curr_time = t_now + dt
-                        pose_interp = pose_interp.schedule_waypoint(
-                            pose=target_pose,
-                            time=target_time,
-                            max_pos_speed=self.max_pos_speed,
-                            max_rot_speed=self.max_rot_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if pose_interp is not None:
+                            curr_time = t_now + dt
+                            pose_interp = pose_interp.schedule_waypoint(
+                                pose=target_pose,
+                                time=target_time,
+                                max_pos_speed=self.max_pos_speed,
+                                max_rot_speed=self.max_rot_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEJ:
                         target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
-                        curr_time = t_now + dt
-                        joint_interp = joint_interp.schedule_waypoint(
-                            value=target_joint_q,
-                            time=target_time,
-                            max_speed=self.max_motor_speed,
-                            curr_time=curr_time,
-                            last_waypoint_time=last_waypoint_time,
-                        )
-                        last_waypoint_time = target_time
+                        if joint_interp is not None:
+                            curr_time = t_now + dt
+                            joint_interp = joint_interp.schedule_waypoint(
+                                value=target_joint_q,
+                                time=target_time,
+                                max_speed=self.max_motor_speed,
+                                curr_time=curr_time,
+                                last_waypoint_time=last_waypoint_time,
+                            )
+                            last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()
