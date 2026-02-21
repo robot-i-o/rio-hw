@@ -81,7 +81,7 @@ def ClientFactory(mw, _Node, *args, **kwargs):
 class ServerManager:
     """Helper class to manage multiple servers, each in its own separate process."""
 
-    def __init__(self, mw: str, server_fns: list[Callable | None], start_method: str = "spawn", timeout: float = 5.0):
+    def __init__(self, mw: str, server_fns: list[Callable | None], start_method: str = "spawn", timeout: float = 10.0):
         server_fns = list(filter(lambda fn: fn is not None, server_fns))
         if mw in SERVERLESS_MW:
             [fn() for fn in server_fns]
