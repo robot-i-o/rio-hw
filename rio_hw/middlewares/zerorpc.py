@@ -58,7 +58,7 @@ class ZeroRpcServer(th.Thread, Node):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # create wrappers to pickle output of api methods
+        # create wrappers to serialize output of api methods
         for fn_name in cls.__api__:
             fn_descriptor, fn = get_fn(cls, fn_name)
 
@@ -113,7 +113,7 @@ class ZeroRpcClient(Node):
     def __post_init__(self):
         self.proxy = zerorpc.Client(heartbeat=self.timeout)
 
-        # create wrappers to unpickle output of api methods
+        # create wrappers to deserialize output of api methods
         for fn_name in self.__api__:
 
             def fn_wrapper(self, *args, __fn_name__=fn_name, **kwargs):
