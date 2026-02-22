@@ -96,5 +96,5 @@ class RobotiqDriver:
         }
         return robot_state
 
-    def moveL(self, target_pos):
+    def moveG(self, target_pos):
         self._move_gripper(target_pos, mode=self.control_mode)

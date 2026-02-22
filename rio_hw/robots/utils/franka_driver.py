@@ -324,7 +324,7 @@ class FrankaGripperDriver:
         }
         return robot_state
 
-    def moveL(self, target_pos, wait=False):
+    def moveG(self, target_pos, wait=False):
         if self.driver == "panda_py":
             # [0, 1] -> [0, max_width]
             pos = target_pos * self._gripper_max_width

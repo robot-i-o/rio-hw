@@ -31,7 +31,7 @@ class GripperController(Enum):
 
 
 class RequestType(Enum):
-    MOVEL = auto()
+    MOVEG = auto()
 
 
 class MODBUSMode(Enum):
@@ -47,7 +47,7 @@ class RobotiqGripper:
     __api__ = [
         "get_state",
         "get_all_state",
-        "moveL",
+        "moveG",
     ]
     __pub__ = True
     __req__ = True
@@ -95,7 +95,7 @@ class RobotiqGripper:
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEL, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
+            GripperController.TASK_POS: (RequestType.MOVEG, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
         }[self.robot_controller][1]
         example_request_params = {
             **example_request_params,
@@ -162,7 +162,7 @@ class RobotiqGripper:
                         pos_command = pose_interp(t_now)[0]
                     else:
                         pos_command = np.copy(target_pos)
-                    gripper.moveL(pos_command)
+                    gripper.moveG(pos_command)
                 else:
                     raise ValueError(self.robot_controller)
 
@@ -188,7 +188,7 @@ class RobotiqGripper:
                     reqs = []
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
-                    if req.type == RequestType.MOVEL:
+                    if req.type == RequestType.MOVEG:
                         target_pos = np.array(req.params["target_pose"], dtype=self.dtype)[0]
                         target_time = float(req.params["target_time"])
                         if pose_interp is not None:
@@ -219,12 +219,12 @@ class RobotiqGripper:
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_pose, target_time):
+    def moveG(self, target_pose, target_time):
         target_pose = np.array(target_pose, dtype=self.dtype)
         assert target_pose.shape == (1,)
         assert target_time > time.now()
         req = {
-            "type": RequestType.MOVEL.value,
+            "type": RequestType.MOVEG.value,
             "target_pose": target_pose,
             "target_time": target_time,
         }

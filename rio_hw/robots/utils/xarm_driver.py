@@ -145,7 +145,7 @@ class XArmGripperDriver:
             raise ValueError(self.robot_model)
         return robot_state
 
-    def moveL(self, target_pos: float, wait=False):
+    def moveG(self, target_pos: float, wait=False):
         target_pos = max(0.0, min(1.0, target_pos))  # clamp to [0, 1] range
         if self.robot_model == "lite6":
             # assert self.gripper.mode == 0

@@ -32,14 +32,14 @@ class RobotModel(Enum):
 
 
 class RequestType(Enum):
-    MOVEL = auto()
+    MOVEG = auto()
 
 
 class XarmGripper(Node):
     __api__ = [
         "get_state",
         "get_all_state",
-        "moveL",
+        "moveG",
     ]
     __pub__ = True
     __req__ = True
@@ -75,7 +75,7 @@ class XarmGripper(Node):
             "target_pos": np.zeros((1,), dtype=self.dtype),
         }
         request_params_keys = {
-            RobotController.TASK_POS: (RequestType.MOVEL, ("target_pos",)),
+            RobotController.TASK_POS: (RequestType.MOVEG, ("target_pos",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
@@ -126,7 +126,7 @@ class XarmGripper(Node):
                         pos_command = pose_interp(t_now)[0]
                     else:
                         pos_command = np.copy(target_pos)
-                    gripper.moveL(pos_command)
+                    gripper.moveG(pos_command)
                 else:
                     raise ValueError(self.robot_controller)
 
@@ -152,7 +152,7 @@ class XarmGripper(Node):
                     reqs = []
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
-                    if req.type == RequestType.MOVEL:
+                    if req.type == RequestType.MOVEG:
                         target_pos = np.array(req.params["target_pos"], dtype=self.dtype)[0]
                         target_time = float(req.params["target_time"])
                         if pose_interp is not None:
@@ -183,12 +183,12 @@ class XarmGripper(Node):
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_pos, target_time):
+    def moveG(self, target_pos, target_time):
         target_pos = np.array(target_pos, dtype=self.dtype)
         assert target_pos.shape == (1,)
         assert target_time > time.now()
         req = {
-            "type": RequestType.MOVEL.value,
+            "type": RequestType.MOVEG.value,
             "target_pos": target_pos,
             "target_time": target_time,
         }

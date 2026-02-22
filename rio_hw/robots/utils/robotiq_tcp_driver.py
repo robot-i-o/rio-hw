@@ -332,7 +332,7 @@ class RobotiqTcpDriver:
         speed_byte = max(0x00, min(0xFF, speed_byte))
         self.output_regs[4] = speed_byte
 
-    def moveL(self, position: float, wait=False, timeout=10.0):
+    def moveG(self, position: float, wait=False, timeout=10.0):
         position_byte = self._normalized_to_byte(position)
         self.output_regs[3] = position_byte
 

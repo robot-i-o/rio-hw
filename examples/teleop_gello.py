@@ -29,7 +29,7 @@ class Robot:
     def move_gripper(gripper, freq, t_cmd_target, pos, target_pos):
         if pos is not None:
             target_pos = pos
-        gripper.moveL([target_pos], t_cmd_target)
+        gripper.moveG([target_pos], t_cmd_target)
         return target_pos
 
 
