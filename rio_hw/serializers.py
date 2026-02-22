@@ -10,6 +10,18 @@ except ImportError as e:
         cloudpickle = None  # type: ignore
 
 try:
+    import msgpack
+    import msgpack_numpy
+
+    msgpack_numpy.patch()
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        msgpack = None  # type: ignore
+        msgpack_numpy = None  # type: ignore
+
+try:
     import ormsgpack
 except ImportError as e:
     if TYPE_CHECKING:
@@ -34,6 +46,16 @@ class CloudpickleSerializer:
     @staticmethod
     def unpack(b_data: bytes):
         return cloudpickle.loads(b_data)
+
+
+class MsgpackSerializer:
+    @staticmethod
+    def pack(data) -> bytes:
+        return msgpack.packb(data)
+
+    @staticmethod
+    def unpack(b_data: bytes):
+        return msgpack.unpackb(b_data)
 
 
 class OrmsgpackSerializer:
