@@ -46,7 +46,7 @@ class WsgGripper(Node):
         robot_port: int = 1000,
         robot_model: str = "wsg50",
         robot_controller: str = "task_pos",
-        move_max_speed: float | None = 200.0,
+        max_gripper_speed: float | None = 200.0,
         use_meters: bool = True,
         home_to_open: bool = True,
         dtype=np.float32,
@@ -64,7 +64,7 @@ class WsgGripper(Node):
         self.robot_port = robot_port
         self.robot_model = robot_model
         self.robot_controller = robot_controller
-        self.move_max_speed = move_max_speed
+        self.max_gripper_speed = max_gripper_speed
         self.use_meters = use_meters
         self.scale = 1000.0 if self.use_meters else 1.0
         self.home_to_open = home_to_open
@@ -113,7 +113,7 @@ class WsgGripper(Node):
             if self.robot_controller == RobotController.TASK_POS:
                 curr_info = wsg.script_query()
                 curr_pos = curr_info["position"]
-                if self.move_max_speed is not None:
+                if self.max_gripper_speed is not None:
                     # pose interpolation
                     curr_time = time.now()
                     last_waypoint_time = curr_time
@@ -178,8 +178,8 @@ class WsgGripper(Node):
                             pose_interp = pose_interp.schedule_waypoint(
                                 pose=[target_pos, 0, 0, 0, 0, 0],
                                 time=target_time,
-                                max_pos_speed=self.move_max_speed,
-                                max_rot_speed=self.move_max_speed,
+                                max_pos_speed=self.max_gripper_speed,
+                                max_rot_speed=self.max_gripper_speed,
                                 curr_time=curr_time,
                                 last_waypoint_time=last_waypoint_time,
                             )

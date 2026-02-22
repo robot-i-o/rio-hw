@@ -59,7 +59,7 @@ class RobotiqGripper:
         control_mode: str = "bits",
         calibrate: bool = False,
         robot_controller: str = "task_pos",
-        move_max_speed: float | None = 3.0,
+        max_gripper_speed: float | None = 3.0,
         modbus_mode: str = "serial",
         dtype=np.float64,
         *,
@@ -88,7 +88,7 @@ class RobotiqGripper:
         self.control_mode = control_mode
         self.calibrate = calibrate
         self.robot_controller = GripperController(robot_controller)
-        self.move_max_speed = move_max_speed
+        self.max_gripper_speed = max_gripper_speed
         self.modbus_mode = MODBUSMode[modbus_mode.upper()]
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
@@ -139,7 +139,7 @@ class RobotiqGripper:
 
             if self.robot_controller == GripperController.TASK_POS:
                 curr_pos = gripper.state()["gripper_position"]
-                if self.move_max_speed is not None:
+                if self.max_gripper_speed is not None:
                     # pose interpolation
                     curr_time = time.now()
                     last_waypoint_time = curr_time
@@ -196,8 +196,8 @@ class RobotiqGripper:
                             pose_interp = pose_interp.schedule_waypoint(
                                 pose=[target_pos, 0, 0, 0, 0, 0],
                                 time=target_time,
-                                max_pos_speed=self.move_max_speed,
-                                max_rot_speed=self.move_max_speed,
+                                max_pos_speed=self.max_gripper_speed,
+                                max_rot_speed=self.max_gripper_speed,
                                 curr_time=curr_time,
                                 last_waypoint_time=last_waypoint_time,
                             )

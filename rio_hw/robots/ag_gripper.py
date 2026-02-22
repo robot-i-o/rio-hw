@@ -43,7 +43,7 @@ class AgGripper(Node):
         member_id: int = 1,
         timeout: float = 5.0,
         robot_controller: str = "task_pos",
-        move_max_speed: float | None = 3.0,
+        max_gripper_speed: float | None = 3.0,
         force: int = 50,
         calibrate: bool = True,
         dtype=np.float32,
@@ -61,7 +61,7 @@ class AgGripper(Node):
         self.member_id = member_id
         self.timeout = timeout
         self.robot_controller = robot_controller
-        self.move_max_speed = move_max_speed
+        self.max_gripper_speed = max_gripper_speed
         self.force = force
         self.calibrate = calibrate
         self.dtype = dtype
@@ -102,7 +102,7 @@ class AgGripper(Node):
             if self.robot_controller == RobotController.TASK_POS:
                 # Get current position (normalized 0-1 from per-mille 0-1000)
                 curr_pos = gripper.state / 1000.0
-                if self.move_max_speed is not None:
+                if self.max_gripper_speed is not None:
                     # pose interpolation
                     curr_time = time.now()
                     last_waypoint_time = curr_time
@@ -163,8 +163,8 @@ class AgGripper(Node):
                             pose_interp = pose_interp.schedule_waypoint(
                                 pose=[target_pos, 0, 0, 0, 0, 0],
                                 time=target_time,
-                                max_pos_speed=self.move_max_speed,
-                                max_rot_speed=self.move_max_speed,
+                                max_pos_speed=self.max_gripper_speed,
+                                max_rot_speed=self.max_gripper_speed,
                                 curr_time=curr_time,
                                 last_waypoint_time=last_waypoint_time,
                             )

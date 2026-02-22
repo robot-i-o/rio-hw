@@ -46,7 +46,7 @@ class FrankaGripper(Node):
         robot_ip: str = "192.168.1.111",
         robot_model: str = "fr3_hand",
         robot_controller: str = "task_pos",
-        move_max_speed: float | None = 3.0,
+        max_gripper_speed: float | None = 3.0,
         home_to_open: bool = True,
         driver: str = "panda_py",
         dtype=np.float32,
@@ -62,7 +62,7 @@ class FrankaGripper(Node):
         self.robot_model = RobotModel[robot_model.upper()]
         self.robot_controller = RobotController[robot_controller.upper()]
         self.home_to_open = home_to_open
-        self.move_max_speed = move_max_speed
+        self.max_gripper_speed = max_gripper_speed
         self.driver = driver
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
@@ -100,7 +100,7 @@ class FrankaGripper(Node):
         try:
             if self.robot_controller == RobotController.TASK_POS:
                 curr_pos = gripper.state()["gripper_position"]
-                if self.move_max_speed is not None:
+                if self.max_gripper_speed is not None:
                     # pose interpolation
                     curr_time = time.now()
                     last_waypoint_time = curr_time
@@ -157,8 +157,8 @@ class FrankaGripper(Node):
                             pose_interp = pose_interp.schedule_waypoint(
                                 pose=[target_pos, 0, 0, 0, 0, 0],
                                 time=target_time,
-                                max_pos_speed=self.move_max_speed,
-                                max_rot_speed=self.move_max_speed,
+                                max_pos_speed=self.max_gripper_speed,
+                                max_rot_speed=self.max_gripper_speed,
                                 curr_time=curr_time,
                                 last_waypoint_time=last_waypoint_time,
                             )
