@@ -2,7 +2,7 @@ import threading as th
 from typing import TYPE_CHECKING
 
 from ..node import Node
-from ..serializers import PickleSerializer
+from ..serializers import MsgpackSerializer
 from ._serialize import get_fn, wrap_fn_pack, wrap_fn_unpack
 from ._storage import Queue, RingBuffer
 
@@ -63,7 +63,7 @@ class ZeroRpcServer(th.Thread, Node):
             fn_descriptor, fn = get_fn(cls, fn_name)
 
             def fn_wrapper(*args, __fn__=fn, **kwargs):
-                return PickleSerializer.pack(__fn__(*args, **kwargs))
+                return MsgpackSerializer.pack(__fn__(*args, **kwargs))
 
             wrap_fn_pack(cls, fn_name, fn_descriptor, fn, fn_wrapper)
 
@@ -117,7 +117,7 @@ class ZeroRpcClient(Node):
         for fn_name in self.__api__:
 
             def fn_wrapper(self, *args, __fn_name__=fn_name, **kwargs):
-                return PickleSerializer.unpack(self.proxy(__fn_name__, *args, **kwargs))
+                return MsgpackSerializer.unpack(self.proxy(__fn_name__, *args, **kwargs))
 
             wrap_fn_unpack(self, fn_name, fn_wrapper)
 
