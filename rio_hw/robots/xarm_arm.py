@@ -238,7 +238,7 @@ class XarmArm(Node):
         # arm.set_tcp_maxacc(...)
         # arm.set_joint_jerk(28647, is_radian=True)
         # arm.set_joint_maxacc(10000, is_radian=True)
-        arm.set_linear_spd_limit_factor(1.75)
+        # arm.set_linear_spd_limit_factor(1.75)
         # arm.set_collision_sensitivity(0)
         # arm.set_teach_sensitivity(5)
         # arm.save_conf()
