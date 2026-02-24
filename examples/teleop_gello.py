@@ -211,5 +211,5 @@ class Args(StationCfg):
 if __name__ == "__main__":
     args = tyro.cli(Args)
     print(args)
-    mp.set_start_method(args.mp_method)
+    mp.set_start_method(args.mp_method, force=True)
     main(args)
