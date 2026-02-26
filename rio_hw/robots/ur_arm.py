@@ -205,6 +205,7 @@ class UrArm(Node):
                     pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[curr_pose])
                 else:
                     target_pose = np.copy(curr_pose)
+                    pose_interp = None
             elif self.robot_controller == RobotController.JOINT_POS:
                 curr_joint_q = rtde_r.getActualQ()
                 if self.max_motor_speed is not None:
@@ -216,6 +217,8 @@ class UrArm(Node):
                     lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
                 else:
                     target_joint_q = np.copy(curr_joint_q)
+                    joint_interp = None
+                    lowpass_filter = None
             else:
                 raise ValueError(self.robot_controller)
 

@@ -283,6 +283,7 @@ class XarmArm(Node):
                     pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[curr_pose])
                 else:
                     target_pose = np.copy(curr_pose)
+                    pose_interp = None
             elif self.robot_controller == RobotController.JOINT_POS:
                 code, curr_joint_q = arm.get_servo_angle()
                 assert code == 0
@@ -296,6 +297,8 @@ class XarmArm(Node):
                     lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
                 else:
                     target_joint_q = np.copy(curr_joint_q)
+                    joint_interp = None
+                    lowpass_filter = None
             elif self.robot_controller == RobotController.JOINT_VEL:
                 target_joint_qd = np.zeros(self.num_joints, dtype=self.dtype)
             else:

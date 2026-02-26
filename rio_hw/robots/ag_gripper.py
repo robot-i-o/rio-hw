@@ -109,6 +109,7 @@ class AgGripper(Node):
                     pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
                 else:
                     target_pos = np.copy(curr_pos)
+                    pose_interp = None
             else:
                 raise ValueError(self.robot_controller)
 
