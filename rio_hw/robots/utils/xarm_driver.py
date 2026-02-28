@@ -15,12 +15,12 @@ class XArmSocket:
     # https://docs.supportarticle.ufactory.cc/support_articles/developer/firmware/how-to-get-the-real-time-data-via-tcp-30000-port.html
     # Frequency: 250HZ (200HZ with FT sensor)
     P30000 = {
-        "tcp_pose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
-        "tcp_speed": [497, 520],  # mm/s & rad/s
+        "eef_pose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
+        "eef_twist": [497, 520],  # mm/s & rad/s
         "joint_q": [117, 144],  # rad
         "joint_qd": [449, 472],  # rad/s
-        "target_tcp_pose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
-        "target_tcp_speed": [449, 472],  # mm/s & rad/s
+        "target_eef_pose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
+        "target_eef_twist": [449, 472],  # mm/s & rad/s
         "target_joint_q": [33, 60],  # rad
         "target_joint_qd": [61, 88],  # rad/s
     }

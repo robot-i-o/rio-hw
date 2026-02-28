@@ -66,11 +66,11 @@ class Franka(Protocol):
 
     def state(self): ...
 
-    def moveL(self, tcp_pose, wait=False): ...
+    def moveL(self, eef_pose, wait=False): ...
 
     def moveJ(self, joint_q, wait=False): ...
 
-    def impedanceL(self, tcp_pose, wait=False): ...
+    def impedanceL(self, eef_pose, wait=False): ...
 
     def impedanceJ(self, joint_q, wait=False): ...
 
@@ -142,30 +142,30 @@ class FrankaPandapy:
             O_dP_EE = np.zeros(6)
         O_dP_EE_d = np.array(state.O_dP_EE_d.copy())
 
-        actual_tcp_p = O_T_EE[3, :3]
-        actual_tcp_aa = st.Rotation.from_matrix(O_T_EE[:3, :3]).as_rotvec()
-        target_tcp_p = O_T_EE_d[3, :3]
-        target_tcp_aa = st.Rotation.from_matrix(O_T_EE_d[:3, :3]).as_rotvec()
-        actual_tcp_pose = np.concatenate([actual_tcp_p, actual_tcp_aa])
-        target_tcp_pose = np.concatenate([target_tcp_p, target_tcp_aa])
+        actual_eef_pos = O_T_EE[3, :3]
+        actual_eef_rot = st.Rotation.from_matrix(O_T_EE[:3, :3]).as_rotvec()
+        target_eef_pos = O_T_EE_d[3, :3]
+        target_eef_rot = st.Rotation.from_matrix(O_T_EE_d[:3, :3]).as_rotvec()
+        actual_eef_pose = np.concatenate([actual_eef_pos, actual_eef_rot])
+        target_eef_pose = np.concatenate([target_eef_pos, target_eef_rot])
 
-        actual_tcp_speed = O_dP_EE
-        target_tcp_speed = O_dP_EE_d
+        actual_eef_twist = O_dP_EE
+        target_eef_twist = O_dP_EE_d
 
         state = {
-            "tcp_pose": actual_tcp_pose,
-            "tcp_speed": actual_tcp_speed,
+            "eef_pose": actual_eef_pose,
+            "eef_twist": actual_eef_twist,
             "joint_q": np.array(state.q.copy()),
             "joint_qd": np.array(state.dq.copy()),
-            "target_tcp_pose": target_tcp_pose,
-            "target_tcp_speed": target_tcp_speed,
+            "target_eef_pose": target_eef_pose,
+            "target_eef_twist": target_eef_twist,
             "target_joint_q": np.array(state.q_d.copy()),
             "target_joint_qd": np.array(state.dq_d.copy()),
         }
         return state
 
-    def moveL(self, tcp_pose, wait=False):
-        return self.impedanceL(tcp_pose, wait=wait)
+    def moveL(self, eef_pose, wait=False):
+        return self.impedanceL(eef_pose, wait=wait)
 
     def moveJ(self, joint_q, wait=False):
         if isinstance(joint_q, np.ndarray):
@@ -177,11 +177,11 @@ class FrankaPandapy:
                 self._start_ctrl("joint_position")
             self.ctrl.set_control(joint_q)
 
-    def impedanceL(self, tcp_pose, wait=False):
-        if isinstance(tcp_pose, np.ndarray):
-            tcp_pose = tcp_pose.tolist()
-        p = tcp_pose[:3]
-        q = st.Rotation.from_rotvec(tcp_pose[3:]).as_quat(scalar_first=False).tolist()
+    def impedanceL(self, eef_pose, wait=False):
+        if isinstance(eef_pose, np.ndarray):
+            eef_pose = eef_pose.tolist()
+        p = eef_pose[:3]
+        q = st.Rotation.from_rotvec(eef_pose[3:]).as_quat(scalar_first=False).tolist()
         if wait:
             self.panda.move_to_pose(p, q)
         else:
@@ -224,17 +224,17 @@ class FrankaPolymetis:
             self.client.close()
 
     def state(self):
-        ee_pose = np.array(self.client.get_ee_pose())  # [x, y, z, rx, ry, rz]
+        eef_pose = np.array(self.client.get_ee_pose())  # [x, y, z, rx, ry, rz]
         joint_pos = np.array(self.client.get_joint_positions())
         joint_vel = np.array(self.client.get_joint_velocities())
 
         state = {
-            "tcp_pose": ee_pose,
-            "tcp_speed": np.zeros(6),  # Not available from server
+            "eef_pose": eef_pose,
+            "eef_twist": np.zeros(6),  # Not available from server
             "joint_q": joint_pos,
             "joint_qd": joint_vel,
-            "target_tcp_pose": ee_pose.copy(),  # Use current as target
-            "target_tcp_speed": np.zeros(6),
+            "target_eef_pose": eef_pose.copy(),  # Use current as target
+            "target_eef_twist": np.zeros(6),
             "target_joint_q": joint_pos.copy(),
             "target_joint_qd": joint_vel.copy(),
         }

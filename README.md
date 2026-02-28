@@ -99,10 +99,11 @@ Users only need to implement "pub/req" behavior in nodes through `Node.pub() / N
   - `a_b_tf`: rigid-body transform $T_{a}^{b}$ from frame $a$ to frame $b$ (frame $a$ in coordinates of frame $b$)
   - `*_pose`: pose of an entity in a frame
 - Coordinate system: `Z` up, right-handed
-- Robot base frame: `+X` front, `+Y` left, `+Z` up
-- Robot tcp frame: at tool base, without end effector / gripper offsets
-- Gripper: `[0, 1]` -> `[closed, open]`
-- Images: `(height, width, channel)`, RGB channel order
+- Other conventions:
+  - Images: `(height, width, channel)`, RGB channel order
+  - Robot base frame: `+X` front, `+Y` left, `+Z` up
+  - Robot eef frame: at mounting flange / tool base
+  - Gripper: `[0, 1]` -> `[closed, open]`
 
 # Acknowledgements
 - [`real-stanford/DexUMI`](https://github.com/real-stanford/DexUMI)

@@ -39,7 +39,7 @@ class Interface:
         gp_a = gp.is_button_pressed(0)
         gp_b = gp.is_button_pressed(3)
 
-        delta_tcp_pose = gp_motion
+        delta_eef_pose = gp_motion
         gripper_pose = None
         if gp_x:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
@@ -50,7 +50,7 @@ class Interface:
             gripper_pose = 1.0  # open
         elif gp_b:
             gripper_pose = 0.0  # close
-        return delta_tcp_pose, gripper_pose, t_last_mode_change, teleop_mode
+        return delta_eef_pose, gripper_pose, t_last_mode_change, teleop_mode
 
     @staticmethod
     def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
@@ -118,8 +118,8 @@ class Interface:
             elif key == "3":
                 teleop_mode = TeleopMode.TRANSLATION_ROTATION
 
-        delta_tcp_pose = kb_motion
-        return delta_tcp_pose, pos_gripper, t_last_mode_change, teleop_mode
+        delta_eef_pose = kb_motion
+        return delta_eef_pose, pos_gripper, t_last_mode_change, teleop_mode
 
     @staticmethod
     def poll_spacemouse(sp, t_sample, t_last_mode_change, teleop_mode):
@@ -133,7 +133,7 @@ class Interface:
         sp_motion = sp.get_motion_state_transformed()
         sp_b0 = sp.is_button_pressed(0)
         sp_b1 = sp.is_button_pressed(1)
-        delta_tcp_pose = sp_motion
+        delta_eef_pose = sp_motion
         gripper_pos = None
         if sp_b0 and sp_b1:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
@@ -144,7 +144,7 @@ class Interface:
             gripper_pos = 0.0  # close
         elif sp_b1:
             gripper_pos = 1.0  # open
-        return delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode
+        return delta_eef_pose, gripper_pos, t_last_mode_change, teleop_mode
 
 
 class Robot:
@@ -181,8 +181,8 @@ class Robot:
 def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
     from rio_hw import time
 
-    arm_target_pose = arm.get_state()["tcp_pose"] if arm else None
-    arm2_target_pose = arm2.get_state()["tcp_pose"] if arm2 else None
+    arm_target_pose = arm.get_state()["eef_pose"] if arm else None
+    arm2_target_pose = arm2.get_state()["eef_pose"] if arm2 else None
     gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
     gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
     teleop_mode = TeleopMode.TRANSLATION_2D
@@ -204,21 +204,21 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
             time.precise_wait(t_sample)
             # get teleop command
             polled = Interface.poll(args.teleop, teleop, t_sample, t_last_mode_change, teleop_mode)
-            delta_tcp_pose, gripper_pos, t_last_mode_change, teleop_mode = polled
+            delta_eef_pose, gripper_pos, t_last_mode_change, teleop_mode = polled
 
             # move robots
             if arm:
                 _t_cmd_target = t_cmd_target + args.arm_latency
                 max_pos_speed, max_rot_speed = args.arm_cfg.max_pos_speed, args.arm_cfg.max_rot_speed
                 arm_target_pose = Robot.move_arm(
-                    arm, freq, _t_cmd_target, teleop_mode, delta_tcp_pose, arm_target_pose, max_pos_speed, max_rot_speed
+                    arm, freq, _t_cmd_target, teleop_mode, delta_eef_pose, arm_target_pose, max_pos_speed, max_rot_speed
                 )
 
             if arm2:
                 _t_cmd_target = t_cmd_target + args.arm_latency
                 max_pos_speed, max_rot_speed = args.arm2_cfg.max_pos_speed, args.arm2_cfg.max_rot_speed
                 arm2_target_pose = Robot.move_arm(
-                    arm2, freq, _t_cmd_target, teleop_mode, delta_tcp_pose, arm2_target_pose, max_pos_speed, max_rot_speed
+                    arm2, freq, _t_cmd_target, teleop_mode, delta_eef_pose, arm2_target_pose, max_pos_speed, max_rot_speed
                 )
 
             if gripper:
@@ -236,7 +236,7 @@ def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
                     "|",
                     f"teleop_mode: {teleop_mode}",
                     "|",
-                    f"delta_tcp_pose: {delta_tcp_pose}",
+                    f"delta_eef_pose: {delta_eef_pose}",
                     "|",
                     f"gripper_pos: {gripper_pos}",
                 )

@@ -141,15 +141,15 @@ class XarmArm(Node):
 
     def __post_init__(self):
         example_request_params = {
-            "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
+            "target_eef_pose": np.zeros((6,), dtype=self.dtype),
             "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_tcp_twist": np.zeros((6,), dtype=self.dtype),
+            "target_eef_twist": np.zeros((6,), dtype=self.dtype),
             "target_joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
         }
         request_params_keys = {
-            RobotController.TASK_POS: (RequestType.MOVEL, ("target_tcp_pose",)),
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_eef_pose",)),
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
-            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_tcp_twist",)),
+            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_eef_twist",)),
             RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_joint_qd",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
@@ -196,10 +196,10 @@ class XarmArm(Node):
 
                 robot_state = XArmSocket.bytes_to_state(data)
                 robot_state = {k: np.array(v, dtype=self.dtype) for k, v in robot_state.items()}
-                robot_state["tcp_pose"][:3] *= 0.001  # convert mm to m
-                robot_state["tcp_speed"][:3] *= 0.001  # convert mm/s to m/s
-                robot_state["target_tcp_pose"][:3] *= 0.001  # convert mm to m
-                robot_state["target_tcp_speed"][:3] *= 0.001  # convert mm/s to m/s
+                robot_state["eef_pose"][:3] *= 0.001  # convert mm to m
+                robot_state["eef_twist"][:3] *= 0.001  # convert mm/s to m/s
+                robot_state["target_eef_pose"][:3] *= 0.001  # convert mm to m
+                robot_state["target_eef_twist"][:3] *= 0.001  # convert mm/s to m/s
 
                 # Store current state in ring buffer
                 data = {
@@ -344,7 +344,7 @@ class XarmArm(Node):
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEL:
-                        target_pose = np.array(req.params.get("target_tcp_pose"), dtype=self.dtype)
+                        target_pose = np.array(req.params.get("target_eef_pose"), dtype=self.dtype)
                         target_time = float(req.params.get("target_time"))
                         if pose_interp is not None:
                             curr_time = t_now + dt
@@ -402,13 +402,13 @@ class XarmArm(Node):
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveL(self, target_tcp_pose, target_time):
-        target_tcp_pose = np.array(target_tcp_pose, dtype=self.dtype)
-        assert target_tcp_pose.shape == (6,)
+    def moveL(self, target_eef_pose, target_time):
+        target_eef_pose = np.array(target_eef_pose, dtype=self.dtype)
+        assert target_eef_pose.shape == (6,)
         assert target_time > time.now()
         req = {
             "type": RequestType.MOVEL.value,
-            "target_tcp_pose": target_tcp_pose,
+            "target_eef_pose": target_eef_pose,
             "target_time": target_time,
         }
         self.request_queue.put(req)
@@ -424,13 +424,13 @@ class XarmArm(Node):
         }
         self.request_queue.put(req)
 
-    def speedL(self, target_tcp_twist, target_time):
-        target_tcp_twist = np.array(target_tcp_twist, dtype=self.dtype)
-        assert target_tcp_twist.shape == (6,)
+    def speedL(self, target_eef_twist, target_time):
+        target_eef_twist = np.array(target_eef_twist, dtype=self.dtype)
+        assert target_eef_twist.shape == (6,)
         assert target_time > time.now()
         req = {
             "type": RequestType.SPEEDL.value,
-            "target_tcp_twist": target_tcp_twist,
+            "target_eef_twist": target_eef_twist,
             "target_time": target_time,
         }
         self.request_queue.put(req)
