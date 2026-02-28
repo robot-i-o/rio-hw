@@ -13,14 +13,13 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.14.0
+    rev: v0.14.10
     hooks:
       # Run the linter.
-      - id: ruff
-        args: [--fix] # Apply fixes to resolve lint violations.
+      - id: ruff-check
       # Run the formatter.
       - id: ruff-format
   - repo: https://github.com/crate-ci/typos
-    rev: v1.38.1
+    rev: v1.42.0
     hooks:
       - id: typos
