@@ -63,6 +63,7 @@ class AvpStream(Node):
         try:
             # Main loop
             rate = time.Rate(self.freq)
+            self.req_ready_event.set()
             not_pub_ready = True
             while not self.exit_event.is_set():
                 state = avp.latest

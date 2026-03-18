@@ -145,7 +145,7 @@ class Record3d(Node):
         try:
             # Main loop
             rate = time.Rate(self.freq)
-            self.pub_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 # Wait for new frame to arrive
                 frame_event.wait()
@@ -208,6 +208,9 @@ class Record3d(Node):
                     "timestamp": receive_time,
                 }
                 self.ring_buffer.put(data, wait=False)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
                 rate.precise_sleep()
         except KeyboardInterrupt:
             pass

@@ -177,7 +177,8 @@ class Realsense(Node):
         try:
             # Main loop
             rate = time.Rate(self.freq)
-            self.pub_ready_event.set()
+            self.req_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 try:
                     frameset = pipeline.wait_for_frames(timeout_ms=self.timeout_ms)
@@ -210,6 +211,9 @@ class Realsense(Node):
                     "timestamp": receive_time,
                 }
                 self.ring_buffer.put(data, wait=False)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
 
                 # Fetch requests from queue
                 try:

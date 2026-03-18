@@ -201,11 +201,10 @@ class Zed:
         try:
             # Main loop
             rate = time.Rate(self.freq)
-            self.pub_ready_event.set()
+            not_pub_ready = True
             while not self.exit_event.is_set():
                 # Grab frame
                 code = cam.grab(runtime_params)
-
                 if code <= sl.ERROR_CODE.SUCCESS:
                     receive_time = time.now()
 
@@ -250,6 +249,9 @@ class Zed:
                         "timestamp": receive_time,
                     }
                     self.ring_buffer.put(data, wait=False)
+                    if not_pub_ready:
+                        self.pub_ready_event.set()
+                        not_pub_ready = False
 
                 # Fetch requests from queue
                 try:
