@@ -2,7 +2,7 @@ import threading as th
 from typing import TYPE_CHECKING
 
 from ..node import Node
-from ..serializers import PickleSerializer
+from ..serializers import Serializer
 from ._serialize import wrap_fn_unpack
 from ._storage import Queue, RingBuffer
 
@@ -27,6 +27,7 @@ class ZenohServer(th.Thread, Node):
         freq: int = 100,
         max_buffer_size: int = 30,
         max_queue_size: int = 100,
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose=True,
         **kwargs,
@@ -43,11 +44,14 @@ class ZenohServer(th.Thread, Node):
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
+
         def _on_query_factory(fn_name: str):
             method = getattr(self, fn_name)
 
@@ -58,9 +62,9 @@ class ZenohServer(th.Thread, Node):
                         if raw is None:
                             args, kwargs = (), {}  # no args
                         else:
-                            args, kwargs = PickleSerializer.unpack(raw.to_bytes())
+                            args, kwargs = self._serializer.unpack(raw.to_bytes())
                         result = method(*args, **kwargs)
-                        payload = PickleSerializer.pack(result)
+                        payload = self._serializer.pack(result)
                         q.reply(q.key_expr, zenoh.ZBytes(payload), encoding=zenoh.Encoding.APPLICATION_OCTET_STREAM)
                     except Exception as e:
                         q.reply_err(str(e).encode("utf-8"), encoding=zenoh.Encoding.TEXT_PLAIN)
@@ -133,6 +137,7 @@ class ZenohClient(Node):
         transport: str = "tcp",
         *,
         addr: str = "127.0.0.1:5555",
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose: bool = True,
         **kwargs,
@@ -145,13 +150,14 @@ class ZenohClient(Node):
         assert transport in ("tcp",)
         self.transport = transport
         self.addr = addr
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def _proxy(self, fn_name: str, *args, **kwargs):
         key = f"{self.topic}/{fn_name}"
-        payload = PickleSerializer.pack((args, kwargs))
+        payload = self._serializer.pack((args, kwargs))
         payload = zenoh.ZBytes(payload)
         sample = self._session.get(key, payload=payload, target=zenoh.QueryTarget.BEST_MATCHING, timeout=self.timeout)
         if sample is None:
@@ -162,9 +168,10 @@ class ZenohClient(Node):
                 msg = rep.ok.payload
         if msg is None:
             raise RuntimeError(f"Invalid reply received for remote call '{fn_name}'")
-        return PickleSerializer.unpack(msg.to_bytes())
+        return self._serializer.unpack(msg.to_bytes())
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
         conf = zenoh.Config()
         conf.insert_json5("mode", "'client'")
         conf.insert_json5("connect/endpoints", f'["{self.transport}/{self.addr}"]')

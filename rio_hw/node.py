@@ -30,6 +30,7 @@ class Node(Protocol):
     freq: int
     max_buffer_size: int
     max_queue_size: int
+    serializer: str
     timeout: float
     verbose: bool
 
@@ -39,6 +40,7 @@ class Node(Protocol):
         freq: int = 100,
         max_buffer_size: int = 30,
         max_queue_size: int = 100,
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose: bool = True,
         **kwargs,
@@ -46,6 +48,7 @@ class Node(Protocol):
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         if TYPE_CHECKING:

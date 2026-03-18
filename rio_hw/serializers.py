@@ -1,4 +1,5 @@
 import pickle
+import sys
 from typing import TYPE_CHECKING, Protocol
 
 try:
@@ -28,22 +29,6 @@ except ImportError as e:
         raise e
     else:
         ormsgpack = None  # type: ignore
-
-
-__all__ = [
-    "CloudpickleSerializer",
-    "MsgpackSerializer",
-    "OrmsgpackSerializer",
-    "PickleSerializer",
-]
-
-
-class Serializer(Protocol):
-    @staticmethod
-    def pack(data) -> bytes: ...
-
-    @staticmethod
-    def unpack(b_data: bytes): ...
 
 
 class CloudpickleSerializer:
@@ -84,3 +69,25 @@ class PickleSerializer:
     @staticmethod
     def unpack(b_data: bytes):
         return pickle.loads(b_data)
+
+
+__all__ = [
+    "CloudpickleSerializer",
+    "MsgpackSerializer",
+    "OrmsgpackSerializer",
+    "PickleSerializer",
+]
+
+
+class Serializer(Protocol):
+    @staticmethod
+    def pack(data) -> bytes: ...
+
+    @staticmethod
+    def unpack(b_data: bytes): ...
+
+    def make(name: str = "pickle"):
+        cls = getattr(sys.modules[__name__], f"{name.capitalize()}Serializer", None)
+        if cls is None:
+            raise ValueError(name)
+        return cls

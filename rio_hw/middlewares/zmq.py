@@ -2,7 +2,7 @@ import threading as th
 from typing import TYPE_CHECKING
 
 from ..node import Node
-from ..serializers import PickleSerializer
+from ..serializers import Serializer
 from ._serialize import wrap_fn_unpack
 from ._storage import Queue, RingBuffer
 
@@ -27,6 +27,7 @@ class ZmqServer(th.Thread, Node):
         max_buffer_size: int = 30,
         max_queue_size: int = 100,
         frames_per_publish: int = 1,
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose=True,
         **kwargs,
@@ -46,11 +47,13 @@ class ZmqServer(th.Thread, Node):
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
         self.frames_per_publish = frames_per_publish
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
         self.b_topic = self.topic.encode()
         if self.transport == "ipc":
             self.addr = f"/tmp/{self.topic}_pub"
@@ -95,7 +98,7 @@ class ZmqServer(th.Thread, Node):
     def _put(self, data):
         self.ring_buffer._put(data)
         frames = self.ring_buffer.get_last_k(k=self.frames_per_publish)
-        publish_data = PickleSerializer.pack(frames)
+        publish_data = self._serializer.pack(frames)
         self.pub_socket.send_multipart([self.b_topic, publish_data])
 
     def _request_loop(self):
@@ -107,9 +110,9 @@ class ZmqServer(th.Thread, Node):
                         continue
 
                     identity, _, request_msg = message_parts
-                    fn_name, args, kwargs = PickleSerializer.unpack(request_msg)
+                    fn_name, args, kwargs = self._serializer.unpack(request_msg)
                     result = getattr(self, fn_name)(*args, **kwargs)
-                    self.req_socket.send_multipart([identity, b"", PickleSerializer.pack(result)])
+                    self.req_socket.send_multipart([identity, b"", self._serializer.pack(result)])
         except KeyboardInterrupt:
             pass
 
@@ -150,6 +153,7 @@ class ZmqClient(Node):
         topic: str | None = None,
         transport: str = "tcp",
         addr: str = "127.0.0.1:5555",
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose=True,
         **kwargs,
@@ -163,11 +167,13 @@ class ZmqClient(Node):
         self.topic = topic
         self.transport = transport
         self.addr = addr
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
         if self.transport == "ipc":
             self.addr = f"/tmp/{self.topic}_pub"
             self.req_addr = f"{self.addr}_req"
@@ -184,9 +190,9 @@ class ZmqClient(Node):
 
             def fn_wrapper(self, *args, __fn_name=fn_name, **kwargs):
                 with self._lock:
-                    self.req_socket.send_multipart([b"", PickleSerializer.pack((__fn_name, args, kwargs))])
+                    self.req_socket.send_multipart([b"", self._serializer.pack((__fn_name, args, kwargs))])
                     _, response_msg = self.req_socket.recv_multipart()
-                    return PickleSerializer.unpack(response_msg)
+                    return self._serializer.unpack(response_msg)
 
             wrap_fn_unpack(self, fn_name, fn_wrapper)
 

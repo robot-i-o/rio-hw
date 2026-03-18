@@ -2,7 +2,7 @@ import threading as th
 from typing import TYPE_CHECKING
 
 from ..node import Node
-from ..serializers import MsgpackSerializer
+from ..serializers import Serializer
 from ._serialize import get_fn, wrap_fn_pack, wrap_fn_unpack
 from ._storage import Queue, RingBuffer
 
@@ -25,6 +25,7 @@ class ZeroRpcServer(th.Thread, Node):
         freq: int = 100,
         max_buffer_size: int = 30,
         max_queue_size: int = 100,
+        serializer: str = "msgpack",
         timeout: float = 5.0,  # should be same as client
         verbose=True,
         **kwargs,
@@ -36,11 +37,14 @@ class ZeroRpcServer(th.Thread, Node):
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
+
         def run_server():
             server = zerorpc.Server(self, heartbeat=self.timeout)
             server.bind(f"{self.transport}://{self.addr}")
@@ -63,7 +67,7 @@ class ZeroRpcServer(th.Thread, Node):
             fn_descriptor, fn = get_fn(cls, fn_name)
 
             def fn_wrapper(*args, __fn__=fn, **kwargs):
-                return MsgpackSerializer.pack(__fn__(*args, **kwargs))
+                return args[0]._serializer.pack(__fn__(*args, **kwargs))
 
             wrap_fn_pack(cls, fn_name, fn_descriptor, fn, fn_wrapper)
 
@@ -99,6 +103,7 @@ class ZeroRpcClient(Node):
         transport: str = "tcp",
         *,
         addr: str = "127.0.0.1:5555",
+        serializer: str = "msgpack",
         timeout: float = 5.0,  # should be same as server
         verbose=True,
         **kwargs,
@@ -106,18 +111,20 @@ class ZeroRpcClient(Node):
         assert transport in ("tcp", "ipc")
         self.transport = transport
         self.addr = addr
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
         self.proxy = zerorpc.Client(heartbeat=self.timeout)
 
         # create wrappers to deserialize output of api methods
         for fn_name in self.__api__:
 
             def fn_wrapper(self, *args, __fn_name__=fn_name, **kwargs):
-                return MsgpackSerializer.unpack(self.proxy(__fn_name__, *args, **kwargs))
+                return self._serializer.unpack(self.proxy(__fn_name__, *args, **kwargs))
 
             wrap_fn_unpack(self, fn_name, fn_wrapper)
 

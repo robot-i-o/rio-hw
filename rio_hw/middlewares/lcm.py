@@ -5,7 +5,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from ..node import Node
-from ..serializers import PickleSerializer
+from ..serializers import Serializer
 from ._serialize import wrap_fn_unpack
 from ._storage import Queue, RingBuffer
 
@@ -74,6 +74,7 @@ class LcmServer(th.Thread, Node):
         freq: int = 100,
         max_buffer_size: int = 30,
         max_queue_size: int = 100,
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose=True,
         **kwargs,
@@ -87,11 +88,13 @@ class LcmServer(th.Thread, Node):
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
         _check_multicast()
         self._lc = lcm.LCM(f"udpm://{self.addr}?ttl=255")
 
@@ -112,16 +115,16 @@ class LcmServer(th.Thread, Node):
 
     def _put(self, data):
         self.ring_buffer._put(data)
-        self._lc.publish(f"{self.topic}/state", PickleSerializer.pack(data))
+        self._lc.publish(f"{self.topic}/state", self._serializer.pack(data))
 
     def _on_api_request(self, channel, data):
-        request_id, fn_name, args, kwargs = PickleSerializer.unpack(data)
+        request_id, fn_name, args, kwargs = self._serializer.unpack(data)
         try:
             result = getattr(self, fn_name)(*args, **kwargs)
             response = (request_id, result, None)
         except Exception as e:
             response = (request_id, None, str(e))
-        self._lc.publish(f"{self.topic}/api_response", PickleSerializer.pack(response))
+        self._lc.publish(f"{self.topic}/api_response", self._serializer.pack(response))
 
     def _request_loop(self):
         try:
@@ -160,6 +163,7 @@ class LcmClient(Node):
         topic: str | None = None,
         *,
         addr: str = "239.255.55.55:5555",
+        serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose=True,
         **kwargs,
@@ -169,11 +173,13 @@ class LcmClient(Node):
             topic = f"{self.__nodename__}/{addr.split(':')[-1]}"
         self.topic = topic
         self.addr = addr
+        self.serializer = serializer
         self.timeout = timeout
         self.verbose = verbose
         self.__post_init__()
 
     def __post_init__(self):
+        self._serializer = Serializer.make(self.serializer)
         _check_multicast()
         self._lc = lcm.LCM(f"udpm://{self.addr}?ttl=255")
         self._pending = {}  # request_id -> Event
@@ -191,7 +197,7 @@ class LcmClient(Node):
             wrap_fn_unpack(self, fn_name, fn_wrapper)
 
     def _on_api_response(self, channel, data):
-        request_id, result, error = PickleSerializer.unpack(data)
+        request_id, result, error = self._serializer.unpack(data)
         with self._pending_lock:
             if request_id in self._pending:
                 self._results[request_id] = (result, error)
@@ -204,7 +210,7 @@ class LcmClient(Node):
             self._pending[request_id] = event
         self._lc.publish(
             f"{self.topic}/api_request",
-            PickleSerializer.pack((request_id, fn_name, args, kwargs)),
+            self._serializer.pack((request_id, fn_name, args, kwargs)),
         )
         if not event.wait(timeout=self.timeout):
             with self._pending_lock:
