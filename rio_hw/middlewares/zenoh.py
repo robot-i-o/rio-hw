@@ -67,27 +67,26 @@ class ZenohServer(th.Thread, Node):
 
             return _on_query
 
-        def make_queryables(session):
-            queryables = {}
-            for fn_name in self.__api__:
-                key = f"{self.topic}/{fn_name}"
-                qbl = session.declare_queryable(key, _on_query_factory(fn_name))
-                queryables[fn_name] = qbl
-            return queryables
+        # Zenoh session + queryables — synchronous, like ZMQ socket bind
+        config = zenoh.Config()
+        config.insert_json5("mode", "'peer'")
+        config.insert_json5("listen/endpoints", f'["{self.transport}/{self.addr}"]')
+        if self.zenoh_kwargs is not None:
+            for k, v in self.zenoh_kwargs.items():
+                config.insert_json5(k, v)
+        self._session_cm = zenoh.open(config)
+        self._session = self._session_cm.__enter__()
+        self._queryables = {}
+        for fn_name in self.__api__:
+            key = f"{self.topic}/{fn_name}"
+            qbl = self._session.declare_queryable(key, _on_query_factory(fn_name))
+            self._queryables[fn_name] = qbl
 
+        # Server thread — lifecycle only (like ZMQ request_thread)
         def run_server():
-            config = zenoh.Config()
-            config.insert_json5("mode", "'peer'")
-            config.insert_json5("listen/endpoints", f'["{self.transport}/{self.addr}"]')
-            if self.zenoh_kwargs is not None:
-                for k, v in self.zenoh_kwargs.items():
-                    config.insert_json5(k, v)
-
-            with zenoh.open(config) as session:
-                queryables = make_queryables(session)  # rpc style
-                self.exit_event.wait()
-                for q in queryables.values():  # shutdown queryables
-                    q.undeclare()
+            self.exit_event.wait()
+            for q in self._queryables.values():
+                q.undeclare()
 
         self.server_thread = th.Thread(target=run_server, daemon=self.daemon)
 
@@ -115,8 +114,8 @@ class ZenohServer(th.Thread, Node):
         if self.worker_thread is not None:
             self.worker_thread.join(self.timeout)
         self.main_thread.join(self.timeout)
-
         self.server_thread.join(self.timeout)
+        self._session_cm.__exit__(None, None, None)
 
     def __enter__(self):
         self.start()
