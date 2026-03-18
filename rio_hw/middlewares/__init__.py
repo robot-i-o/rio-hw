@@ -1,3 +1,4 @@
+from .lcm import LcmClient, LcmServer
 from .portal import PortalClient, PortalServer
 from .shm import ShmClient, ShmServer
 from .shmf import ShmfClient, ShmfServer
@@ -13,6 +14,7 @@ SERVERLESS_MW = [
 ]
 
 __all__ = [
+    "Lcm",
     "Portal",
     "Shm",
     "Shmf",
