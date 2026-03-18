@@ -186,6 +186,7 @@ class PubOnlyNode(Node):
                 if not_pub_ready:
                     self.pub_ready_event.set()
                     not_pub_ready = False
+                time.sleep(_cfg.spin_sleep)
         except KeyboardInterrupt:
             pass
 
