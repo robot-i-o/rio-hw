@@ -20,7 +20,7 @@ class ZmqServer(th.Thread, Node):
         self,
         daemon: bool = True,
         *,
-        topic: str = "topic",
+        topic: str | None = None,
         transport: str = "tcp",
         addr: str = "127.0.0.1:5555",
         freq: int = 100,
@@ -36,6 +36,9 @@ class ZmqServer(th.Thread, Node):
         if transport == "tcp":
             assert int(addr.rsplit(":", 1)[1]) % 2 == 1, "port must be odd (each node uses port and port+1)"
         assert frames_per_publish > 0 and frames_per_publish <= max_buffer_size
+        if topic is None:
+            port = addr.split(":")[-1]
+            topic = f"{self.__nodename__}/{port}"
         self.topic = topic
         self.transport = transport
         self.addr = addr
@@ -144,7 +147,7 @@ class ZmqClient(Node):
     def __init__(
         self,
         *,
-        topic: str = "topic",
+        topic: str | None = None,
         transport: str = "tcp",
         addr: str = "127.0.0.1:5555",
         timeout: float = 5.0,
@@ -154,6 +157,9 @@ class ZmqClient(Node):
         assert transport in ("ipc", "tcp")
         if transport == "tcp":
             assert int(addr.rsplit(":", 1)[1]) % 2 == 1, "port must be odd (each node uses port and port+1)"
+        if topic is None:
+            port = addr.split(":")[-1]
+            topic = f"{self.__nodename__}/{port}"
         self.topic = topic
         self.transport = transport
         self.addr = addr
