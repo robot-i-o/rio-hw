@@ -26,6 +26,11 @@ dependencies = [
     "tyro",  # dataclass cfg command-line interface
 ]
 
+[tool.uv]
+# pip install atomics --no-binary=atomics --no-cache --force-reinstall
+# https://github.com/doodspav/atomics/issues/5
+no-binary-package = ["atomics"]
+
 [project.optional-dependencies]
 dev = [
     "ipdb",
