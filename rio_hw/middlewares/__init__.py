@@ -4,6 +4,7 @@ from .shmf import ShmfClient, ShmfServer
 from .thread import ThreadClient, ThreadServer
 from .zenoh import ZenohClient, ZenohServer
 from .zerorpc import ZeroRpcClient, ZeroRpcServer
+from .zmq import ZmqClient, ZmqServer
 
 SERVERLESS_MW = [
     "Shm",
@@ -18,4 +19,5 @@ __all__ = [
     "Thread",
     "Zenoh",
     "ZeroRpc",
+    "Zmq",
 ]
