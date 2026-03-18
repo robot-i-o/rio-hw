@@ -105,7 +105,7 @@ class XArmGripperDriver:
         time.sleep(0.1)
 
         if self.home_to_open:
-            self.moveL(1.0, wait=True)  # open
+            self.moveG(1.0, wait=True)  # open
 
     def stop(self):
         if self.robot_model == "lite6":
