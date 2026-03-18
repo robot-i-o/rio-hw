@@ -50,8 +50,8 @@ class Template(Node):
         self.example_data = {
             "timestamp": time.now(),
         }
-        self.worker = self.req
-        self.run = self.pub
+        self.worker = None
+        self.run = self.pubreq
         super().__post_init__()
 
     def pub(self):
@@ -82,6 +82,43 @@ class Template(Node):
             rate = time.Rate(self.freq)
             self.req_ready_event.set()
             while not self.exit_event.is_set():
+                # Fetch requests from queue
+                try:
+                    reqs = self.request_queue.get_all()
+                    if isinstance(reqs, dict):
+                        reqs = [{k: reqs[k][i] for k in reqs.keys()} for i in range(len(reqs["type"]))]
+                except queue.Empty:
+                    reqs = []
+                for r in reqs:
+                    req = Request(RequestType(r.pop("type")), r)
+                    if req.type == RequestType.METHOD:
+                        raise NotImplementedError
+                    else:
+                        raise RuntimeError(req.type)
+                rate.precise_sleep()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            pass
+
+    def pubreq(self):
+        try:
+            # Main loop
+            rate = time.Rate(self.freq)
+            self.req_ready_event.set()
+            not_pub_ready = True
+            while not self.exit_event.is_set():
+                state = {}
+                # Store current state in ring buffer
+                data = {
+                    **state,
+                    "timestamp": time.now(),
+                }
+                self.ring_buffer.put(data)
+                if not_pub_ready:
+                    self.pub_ready_event.set()
+                    not_pub_ready = False
+
                 # Fetch requests from queue
                 try:
                     reqs = self.request_queue.get_all()
