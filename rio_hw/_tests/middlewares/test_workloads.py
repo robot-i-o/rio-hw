@@ -1,5 +1,6 @@
 import contextlib
 import importlib
+import multiprocessing as mp
 import queue
 from enum import Enum, auto
 
@@ -281,6 +282,8 @@ def middleware(request):
     mod = importlib.import_module(f"...middlewares.{mw.lower()}", package=__package__)
     if getattr(mod, mw.lower(), ...) is None:
         pytest.skip(f"{mw} dependency not installed")
+    start_method = "fork" if mw in ("Shmf",) else "spawn"
+    mp.set_start_method(start_method, force=True)
     return mw
 
 
