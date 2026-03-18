@@ -2,6 +2,8 @@ import pickle
 import sys
 from typing import TYPE_CHECKING, Protocol
 
+import numpy as np
+
 try:
     import cloudpickle
 except ImportError as e:
@@ -41,6 +43,19 @@ class CloudpickleSerializer:
         return cloudpickle.loads(b_data)
 
 
+def _make_writeable(obj):
+    """Recursively make all numpy arrays in a deserialized object writable."""
+    if isinstance(obj, np.ndarray):
+        if not obj.flags.writeable:
+            return obj.copy()
+        return obj
+    if isinstance(obj, dict):
+        return {k: _make_writeable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(_make_writeable(item) for item in obj)
+    return obj
+
+
 class MsgpackSerializer:
     @staticmethod
     def pack(data) -> bytes:
@@ -48,7 +63,7 @@ class MsgpackSerializer:
 
     @staticmethod
     def unpack(b_data: bytes):
-        return msgpack.unpackb(b_data)
+        return _make_writeable(msgpack.unpackb(b_data))
 
 
 class OrmsgpackSerializer:
