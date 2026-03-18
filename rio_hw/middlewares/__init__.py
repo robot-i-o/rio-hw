@@ -1,3 +1,4 @@
+from .grpc import GrpcClient, GrpcServer
 from .lcm import LcmClient, LcmServer
 from .portal import PortalClient, PortalServer
 from .shm import ShmClient, ShmServer
@@ -14,6 +15,7 @@ SERVERLESS_MW = [
 ]
 
 __all__ = [
+    "Grpc",
     "Lcm",
     "Portal",
     "Shm",
