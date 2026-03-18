@@ -1,4 +1,4 @@
-"""CAN-bus driver for Waveshare PiperX grippers via USB-CAN serial adapter."""
+"""CAN-bus driver for Piper grippers via USB-CAN Waveshare serial adapter."""
 
 import time
 from typing import TYPE_CHECKING
@@ -79,20 +79,20 @@ def _build_serial_frame_std(id_11bit: int, data_bytes: list[int]) -> bytearray:
     return frame
 
 
-def _read_one_frame(ser: "serial.Serial") -> tuple[int, list[int]] | None:
+def _read_one_frame(s: serial.Serial) -> tuple[int, list[int]] | None:
     """Read one variable-length frame from serial.
 
     Returns (can_id, data_bytes) or None on timeout / sync loss.
     """
     # Sync to header 0xAA
     while True:
-        b = ser.read(1)
+        b = s.read(1)
         if not b:
             return None
         if b[0] == 0xAA:
             break
 
-    type_b = ser.read(1)
+    type_b = s.read(1)
     if not type_b:
         return None
     type_b = type_b[0]
@@ -102,25 +102,25 @@ def _read_one_frame(ser: "serial.Serial") -> tuple[int, list[int]] | None:
     is_remote = bool(type_b & (1 << 4))
 
     if is_remote:
-        ser.read((4 if is_ext else 2) + dlc + 1)
+        s.read((4 if is_ext else 2) + dlc + 1)
         return None
 
     if is_ext:
-        id_bytes = ser.read(4)
+        id_bytes = s.read(4)
         if len(id_bytes) < 4:
             return None
         can_id = id_bytes[0] | (id_bytes[1] << 8) | (id_bytes[2] << 16) | (id_bytes[3] << 24)
     else:
-        id_bytes = ser.read(2)
+        id_bytes = s.read(2)
         if len(id_bytes) < 2:
             return None
         can_id = id_bytes[0] | (id_bytes[1] << 8)
 
-    data = ser.read(dlc)
+    data = s.read(dlc)
     if len(data) < dlc:
         return None
 
-    tail = ser.read(1)
+    tail = s.read(1)
     if not tail or tail[0] != 0x55:
         return None
 
@@ -151,11 +151,11 @@ class WavesharePiperDriver:
         self.baudrate = baudrate
         self.max_angle = max_angle
         self.default_effort = default_effort
-        self.ser: "serial.Serial | None" = None
+        self._s: serial.Serial | None = None
 
     def start(self):
         """Open serial port and run initialization sequence."""
-        self.ser = serial.Serial(
+        self._s = serial.Serial(
             port=self.port,
             baudrate=self.baudrate,
             bytesize=8,
@@ -172,10 +172,10 @@ class WavesharePiperDriver:
 
     def stop(self):
         """Disable gripper and close serial port."""
-        if self.ser is not None and self.ser.is_open:
+        if self._s is not None and self._s.is_open:
             self._send_ctrl(grippers_angle=0, effort=0, status_code=0x00)
-            self.ser.close()
-            self.ser = None
+            self._s.close()
+            self._s = None
 
     def state(self) -> dict:
         """Read gripper feedback.
@@ -183,8 +183,8 @@ class WavesharePiperDriver:
         Returns:
             Dict with ``gripper_position`` normalized to [0, 1] (0=closed, 1=open).
         """
-        assert self.ser is not None
-        frame = _read_one_frame(self.ser)
+        assert self._s is not None
+        frame = _read_one_frame(self._s)
         if frame is None:
             return {"gripper_position": 0.0}
 
@@ -208,7 +208,7 @@ class WavesharePiperDriver:
 
     def _send_ctrl(self, grippers_angle: int, effort: int, status_code: int, set_zero: int = 0x00):
         """Build and send a gripper control CAN frame."""
-        assert self.ser is not None
+        assert self._s is not None
         payload = [
             *_int32_to_be(grippers_angle),
             *_uint16_to_be(effort),
@@ -216,5 +216,5 @@ class WavesharePiperDriver:
             set_zero & 0xFF,
         ]
         frame = _build_serial_frame_std(GRIPPER_CTRL_ID, payload)
-        self.ser.write(frame)
-        self.ser.flush()
+        self._s.write(frame)
+        self._s.flush()
