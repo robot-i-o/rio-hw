@@ -45,6 +45,7 @@ dev = [
 serializers = [
     "cloudpickle",
     "msgpack_numpy",
+    "msgspec",
     "ormsgpack",
 ]
 # --- nodes ---

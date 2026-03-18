@@ -25,6 +25,14 @@ except ImportError as e:
         msgpack_numpy = None  # type: ignore
 
 try:
+    import msgspec
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        msgspec = None  # type: ignore
+
+try:
     import ormsgpack
 except ImportError as e:
     if TYPE_CHECKING:
@@ -64,6 +72,32 @@ class MsgpackSerializer:
     @staticmethod
     def unpack(b_data: bytes):
         return MsgpackSerializer._make_writeable(msgpack.unpackb(b_data))
+
+
+class MsgspecSerializer:
+    @staticmethod
+    def _enc_hook(obj):
+        if isinstance(obj, np.ndarray):
+            return {"__np__": obj.tobytes(), "d": str(obj.dtype), "s": obj.shape}
+        raise NotImplementedError(f"Objects of type {type(obj)} are not supported")
+
+    @staticmethod
+    def _decode(obj):
+        if isinstance(obj, dict):
+            if "__np__" in obj:
+                return np.frombuffer(obj["__np__"], dtype=obj["d"]).reshape(obj["s"]).copy()
+            return {k: MsgspecSerializer._decode(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [MsgspecSerializer._decode(v) for v in obj]
+        return obj
+
+    @staticmethod
+    def pack(data) -> bytes:
+        return msgspec.msgpack.encode(data, enc_hook=MsgspecSerializer._enc_hook)
+
+    @staticmethod
+    def unpack(b_data: bytes):
+        return MsgspecSerializer._decode(msgspec.msgpack.decode(b_data))
 
 
 class OrmsgpackSerializer:
@@ -109,6 +143,7 @@ class PickleSerializer:
 __all__ = [
     "CloudpickleSerializer",
     "MsgpackSerializer",
+    "MsgspecSerializer",
     "OrmsgpackSerializer",
     "PickleSerializer",
 ]

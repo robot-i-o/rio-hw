@@ -10,6 +10,8 @@ _DATA = {
     "float": 3.14,
     "bool": True,
     "np.array": np.array([1.0, 2.0, 3.0]),
+    "list[np.array]": [np.array([1.0, 2.0]), np.array([3.0, 4.0])],
+    "dict{np.array}": {"a": np.array([1.0, 2.0]), "b": np.array([3.0, 4.0])},
 }
 
 
@@ -30,4 +32,13 @@ def data(request):
 
 def test_roundtrip(serializer, data):
     result = serializer.unpack(serializer.pack(data))
-    np.testing.assert_array_almost_equal(result, data)
+    if isinstance(data, dict):
+        assert result.keys() == data.keys()
+        for k in data:
+            np.testing.assert_array_almost_equal(result[k], data[k])
+    elif isinstance(data, list):
+        assert len(result) == len(data)
+        for r, d in zip(result, data, strict=True):
+            np.testing.assert_array_almost_equal(r, d)
+    else:
+        np.testing.assert_array_almost_equal(result, data)
