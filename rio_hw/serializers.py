@@ -30,6 +30,14 @@ except ImportError as e:
         ormsgpack = None  # type: ignore
 
 
+__all__ = [
+    "CloudpickleSerializer",
+    "MsgpackSerializer",
+    "OrmsgpackSerializer",
+    "PickleSerializer",
+]
+
+
 class Serializer(Protocol):
     @staticmethod
     def pack(data) -> bytes: ...
