@@ -36,7 +36,6 @@ no-binary-package = ["atomics"]
 dev = [
     "ipdb",
     "pre-commit",
-    "prettytable",
     "pytest",
     "pytest-xdist",
     "ruff",
