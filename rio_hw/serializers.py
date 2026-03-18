@@ -43,37 +43,57 @@ class CloudpickleSerializer:
         return cloudpickle.loads(b_data)
 
 
-def _make_writeable(obj):
-    """Recursively make all numpy arrays in a deserialized object writable."""
-    if isinstance(obj, np.ndarray):
-        if not obj.flags.writeable:
-            return obj.copy()
-        return obj
-    if isinstance(obj, dict):
-        return {k: _make_writeable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return type(obj)(_make_writeable(item) for item in obj)
-    return obj
-
-
 class MsgpackSerializer:
+    @staticmethod
+    def _make_writeable(obj):
+        """Recursively make all numpy arrays in a deserialized object writable."""
+        if isinstance(obj, np.ndarray):
+            if not obj.flags.writeable:
+                return obj.copy()
+            return obj
+        if isinstance(obj, dict):
+            return {k: MsgpackSerializer._make_writeable(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return type(obj)(MsgpackSerializer._make_writeable(item) for item in obj)
+        return obj
+
     @staticmethod
     def pack(data) -> bytes:
         return msgpack.packb(data)
 
     @staticmethod
     def unpack(b_data: bytes):
-        return _make_writeable(msgpack.unpackb(b_data))
+        return MsgpackSerializer._make_writeable(msgpack.unpackb(b_data))
 
 
 class OrmsgpackSerializer:
     @staticmethod
+    def _encode(obj):
+        if isinstance(obj, np.ndarray):
+            return {"__np__": obj.tobytes(), "d": str(obj.dtype), "s": obj.shape}
+        if isinstance(obj, dict):
+            return {k: OrmsgpackSerializer._encode(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [OrmsgpackSerializer._encode(v) for v in obj]
+        return obj
+
+    @staticmethod
+    def _decode(obj):
+        if isinstance(obj, dict):
+            if "__np__" in obj:
+                return np.frombuffer(obj["__np__"], dtype=obj["d"]).reshape(obj["s"]).copy()
+            return {k: OrmsgpackSerializer._decode(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [OrmsgpackSerializer._decode(v) for v in obj]
+        return obj
+
+    @staticmethod
     def pack(data) -> bytes:
-        return ormsgpack.packb(data, option=ormsgpack.OPT_SERIALIZE_NUMPY)
+        return ormsgpack.packb(OrmsgpackSerializer._encode(data))
 
     @staticmethod
     def unpack(b_data: bytes):
-        return ormsgpack.unpackb(b_data)
+        return OrmsgpackSerializer._decode(ormsgpack.unpackb(b_data))
 
 
 class PickleSerializer:
