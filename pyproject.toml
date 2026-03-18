@@ -24,6 +24,7 @@ dependencies = [
     "spatialmath-python",  # so3, se3 math
     "threadpoolctl",  # thread limiting
     "tyro",  # dataclass cfg command-line interface
+    "prettytable",  # terminal tables
 ]
 
 [tool.uv]
@@ -35,6 +36,7 @@ no-binary-package = ["atomics"]
 dev = [
     "ipdb",
     "pre-commit",
+    "prettytable",
     "pytest",
     "pytest-xdist",
     "ruff",
