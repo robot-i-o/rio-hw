@@ -66,6 +66,7 @@ interfaces = [
     "avp_stream",
     "evdev; sys_platform != 'darwin'",  # gamepad
     "gello @ https://github.com/etaoxing/gello_software/archive/68530625dfbea9fefe8add23fd351ec7c0cb8516.tar.gz",
+    "joycon-python @ https://github.com/etaoxing/joycon-python/archive/b63aedcb9713c8c70ffc27bccedefaf1c0d6c256.tar.gz",  # joycon
     "pynput", # keyboard
     "oculus_reader @ https://github.com/etaoxing/oculus_reader/archive/2c837e3960cc108b28e54388b1da8323ad3f3ac6.tar.gz",
     "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz", # spacemouse
