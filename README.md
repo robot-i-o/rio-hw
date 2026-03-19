@@ -57,9 +57,9 @@ sudo chmod -R 777 /usr/local/zed/settings
 
 AVP Stream (Apple Vision Pro): Download the [Tracking Streamer app](https://apps.apple.com/us/app/tracking-streamer/id6478969032). Run the app and click `Start` to stream tracking data over WiFI network. Click the digital crown to stop streaming.
 
-Gamepad: [`docs/gamepad.md`](docs/gamepad.md)
+Gamepad: [`docs/interfaces/gamepad.md`](docs/interfaces/gamepad.md)
 
-Gello: [`docs/gello.md`](docs/gello.md)
+Gello: [`docs/interfaces/gello.md`](docs/interfaces/gello.md)
 
 Oculus Reader (Quest 2): [`rail-berkeley/oculus_reader/README.md`](https://github.com/rail-berkeley/oculus_reader?tab=readme-ov-file#setup-of-the-adb)
 
@@ -70,11 +70,16 @@ sudo ./scripts/setup/spacemouse.sh
 systemctl status spacenavd
 ```
 
+Vuer: [`docs/interfaces/vuer.md`](docs/interfaces/vuer.md)
+
+XRoboToolkit: [`docs/interfaces/x_robotoolkit.md`](docs/interfaces/x_robotoolkit.md)
+
 ### Robots
 Arms:
-  - [`docs/franka.md`](docs/franka.md)
-  - [`docs/ur.md`](docs/ur.md)
-  - [`docs/xarm.md`](docs/xarm.md)
+  - [`docs/robots/franka.md`](docs/robots/franka.md)
+  - [`docs/robots/kinova.md`](docs/robots/kinova.md)
+  - [`docs/robots/ur.md`](docs/robots/ur.md)
+  - [`docs/robots/xarm.md`](docs/robots/xarm.md)
 
 # Usage
 
