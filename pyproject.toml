@@ -31,6 +31,9 @@ dependencies = [
 # pip install atomics --no-binary=atomics --no-cache --force-reinstall
 # https://github.com/doodspav/atomics/issues/5
 no-binary-package = ["atomics"]
+override-dependencies = [
+    "numpy>=2.0",  # in case other packages pin numpy<2.0.0
+]
 
 [project.optional-dependencies]
 dev = [
@@ -65,6 +68,7 @@ interfaces = [
     "pynput", # keyboard
     "oculus_reader @ https://github.com/etaoxing/oculus_reader/archive/2c837e3960cc108b28e54388b1da8323ad3f3ac6.tar.gz",
     "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz", # spacemouse
+    "televuer @ https://github.com/unitreerobotics/televuer/archive/b6ed5db2f08eabd0c49135fd565bc7f5a0c93573.tar.gz",  # vuer
     "pyvicon-datastream",  # vicon
 ]
 middlewares = [
