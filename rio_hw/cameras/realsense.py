@@ -79,6 +79,7 @@ class Realsense(Node):
         resolution_depth: tuple[int, int] | None = (768, 1024),
         enable_color: bool = True,
         enable_depth: bool = False,
+        bgr: bool = False,
         advanced_mode_config: str | None = None,
         timeout_ms: float = 1000.0,
         dtype=np.float32,
@@ -94,6 +95,7 @@ class Realsense(Node):
         self.resolution_depth = resolution_depth
         self.enable_color = enable_color
         self.enable_depth = enable_depth
+        self.bgr = bgr
         self.advanced_mode_config = advanced_mode_config
         self.timeout_ms = timeout_ms
         self.dtype = dtype
@@ -147,7 +149,8 @@ class Realsense(Node):
         rs_config = rs.config()
         if self.enable_color:
             h, w = self.resolution
-            rs_config.enable_stream(rs.stream.color, w, h, rs.format.bgr8, fps)
+            rs_fmt = rs.format.bgr8 if self.bgr else rs.format.rgb8
+            rs_config.enable_stream(rs.stream.color, w, h, rs_fmt, fps)
         if self.enable_depth:
             h, w = self.resolution_depth
             rs_config.enable_stream(rs.stream.depth, w, h, rs.format.z16, fps)

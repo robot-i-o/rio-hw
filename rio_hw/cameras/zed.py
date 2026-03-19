@@ -60,6 +60,7 @@ class Zed:
         resolution: tuple[int, int] | None = (720, 1280),
         enable_color: bool = True,
         enable_depth: bool = False,
+        bgr: bool = False,
         image_side: str | None = "LEFT",
         concatenate_images: bool = False,
         depth_mode: str = "NEURAL",
@@ -76,6 +77,7 @@ class Zed:
         self.resolution = resolution
         self.enable_color = enable_color
         self.enable_depth = enable_depth
+        self.bgr = bgr
         self.image_side = image_side
         self.concatenate_images = concatenate_images
         self.depth_mode = depth_mode
@@ -220,15 +222,26 @@ class Zed:
                     if self.enable_color:
                         if self.concatenate_images:
                             cam.retrieve_image(sbs_img, sl.VIEW.SIDE_BY_SIDE, resolution=zed_resolution)
-                            camera_state["color"] = sbs_img.get_data()[:, :, :3].copy()
+                            sbs_data = sbs_img.get_data()[:, :, :3].copy()
+                            if not self.bgr:
+                                sbs_data = cv2.cvtColor(sbs_data, cv2.COLOR_BGR2RGB)
+                            camera_state["color"] = sbs_data
                         elif self.image_side is not None:
                             cam.retrieve_image(left_img, sl.VIEW[self.image_side.upper()], resolution=zed_resolution)
-                            camera_state["color"] = left_img.get_data()[:, :, :3].copy()
+                            left_data = left_img.get_data()[:, :, :3].copy()
+                            if not self.bgr:
+                                left_data = cv2.cvtColor(left_data, cv2.COLOR_BGR2RGB)
+                            camera_state["color"] = left_data
                         else:
                             cam.retrieve_image(left_img, sl.VIEW.LEFT, resolution=zed_resolution)
                             cam.retrieve_image(right_img, sl.VIEW.RIGHT, resolution=zed_resolution)
-                            camera_state["color_left"] = left_img.get_data()[:, :, :3].copy()
-                            camera_state["color_right"] = right_img.get_data()[:, :, :3].copy()
+                            left_data = left_img.get_data()[:, :, :3].copy()
+                            right_data = right_img.get_data()[:, :, :3].copy()
+                            if not self.bgr:
+                                left_data = cv2.cvtColor(left_data, cv2.COLOR_BGR2RGB)
+                                right_data = cv2.cvtColor(right_data, cv2.COLOR_BGR2RGB)
+                            camera_state["color_left"] = left_data
+                            camera_state["color_right"] = right_data
 
                     # Retrieve depth map
                     if self.enable_depth:

@@ -1,5 +1,4 @@
 import threading as th
-from enum import Enum
 from typing import TYPE_CHECKING
 
 import cv2
@@ -34,11 +33,6 @@ def get_connected_cameras():
     return serials, models
 
 
-class DeviceType(Enum):
-    TRUEDEPTH = 0
-    LIDAR = 1
-
-
 class Record3d(Node):
     __api__ = [
         "get_state",
@@ -56,6 +50,7 @@ class Record3d(Node):
         resolution_depth: tuple[int, int] | None = None,
         enable_color: bool = True,
         enable_depth: bool = True,
+        bgr: bool = False,
         enable_intrinsics: bool = False,
         enable_extrinsics: bool = False,
         dtype=np.float32,
@@ -70,6 +65,7 @@ class Record3d(Node):
         self.resolution = resolution
         self.enable_color = enable_color
         self.enable_depth = enable_depth
+        self.bgr = bgr
         self.enable_intrinsics = enable_intrinsics
         self.enable_extrinsics = enable_extrinsics
         self.dtype = dtype
@@ -127,13 +123,23 @@ class Record3d(Node):
         def on_stream_stopped():
             stop_event.set()
 
-        def get_intrinsic_mat_from_coeffs(self, coeffs):
+        def get_intrinsic_mat_from_coeffs(coeffs):
             mat = [
                 [coeffs.fx, 0.0, coeffs.tx],
                 [0.0, coeffs.fy, coeffs.ty],
                 [0.0, 0.0, 1.0],
             ]
             return np.array(mat, dtype=self.dtype)
+
+        def get_extrinsic_mat_from_pose(pose):
+            # Quaternion + world position (accessible via camera_pose.[qx|qy|qz|qw|tx|ty|tz])
+            pos = [pose.tx, pose.ty, pose.tz]
+            quat = [pose.qx, pose.qy, pose.qz, pose.qw]
+            extrinsic_mat = np.zeros((4, 4), dtype=self.dtype)
+            extrinsic_mat[3, 3] = 1.0
+            extrinsic_mat[:3, :3] = st.Rotation.from_quat(quat).as_matrix()
+            extrinsic_mat[:3, 3] = pos
+            return extrinsic_mat
 
         dev = devs[dev_idx]
         session = record3d.Record3DStream()
@@ -157,6 +163,7 @@ class Record3d(Node):
                 # confidence = session.get_confidence_frame()
                 intrinsic_mat = get_intrinsic_mat_from_coeffs(session.get_intrinsic_mat())
                 camera_pose = session.get_camera_pose()
+                extrinsic_mat = get_extrinsic_mat_from_pose(camera_pose)
 
                 if rgb is None:
                     frame_event.clear()
@@ -172,20 +179,6 @@ class Record3d(Node):
                 else:
                     raise ValueError(device_type)
 
-                # Quaternion + world position (accessible via camera_pose.[qx|qy|qz|qw|tx|ty|tz])
-                qx, qy, qz, qw, px, py, pz = (
-                    camera_pose.qx,
-                    camera_pose.qy,
-                    camera_pose.qz,
-                    camera_pose.qw,
-                    camera_pose.tx,
-                    camera_pose.ty,
-                    camera_pose.tz,
-                )
-                extrinsic_mat = np.eye(4, dtype=self.dtype)
-                extrinsic_mat[:3, :3] = st.Rotation.from_quat([qx, qy, qz, qw]).as_matrix()
-                extrinsic_mat[:3, -1] = [px, py, pz]
-
                 frame_event.clear()
                 if stop_event.is_set():
                     raise RuntimeError
@@ -194,7 +187,7 @@ class Record3d(Node):
                 camera_state["camera_receive_timestamp"] = receive_time
                 camera_state["camera_capture_timestamp"] = receive_time
                 if self.enable_color:
-                    camera_state["color"] = rgb
+                    camera_state["color"] = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR) if self.bgr else rgb
                 if self.enable_depth:
                     camera_state["depth"] = depth
                 if self.enable_intrinsics:
