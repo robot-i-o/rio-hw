@@ -19,9 +19,9 @@ class ZmqServer(th.Thread, Node):
     def __init__(
         self,
         daemon: bool = True,
-        *,
         topic: str | None = None,
         transport: str = "tcp",
+        *,
         addr: str = "127.0.0.1:5555",
         freq: int = 100,
         max_buffer_size: int = 30,
@@ -149,9 +149,9 @@ class ZmqServer(th.Thread, Node):
 class ZmqClient(Node):
     def __init__(
         self,
-        *,
         topic: str | None = None,
         transport: str = "tcp",
+        *,
         addr: str = "127.0.0.1:5555",
         serializer: str = "msgpack",
         timeout: float = 5.0,
