@@ -42,7 +42,9 @@ ros2 run {PKG_NAME} {PKG_NODE}
 ```
 
 ## FAQ
-- `realsense2`:
+- You will need to use `pip install ...` instead of `uv pip install ...`. You can also use pixi to install packages: `pixi add package` or `pixi add --pypi "package @ file://${PWD}"` for local installation.
+
+- `realsense2` in `pixi.toml`:
 ```bash
 # ros-jazzy-librealsense2 = "*"
 # ros-jazzy-realsense2-camera = "*"

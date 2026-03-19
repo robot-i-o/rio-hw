@@ -1,6 +1,7 @@
 from .grpc import GrpcClient, GrpcServer
 from .lcm import LcmClient, LcmServer
 from .portal import PortalClient, PortalServer
+from .rclpy import RclpyClient, RclpyServer
 from .shm import ShmClient, ShmServer
 from .shmf import ShmfClient, ShmfServer
 from .thread import ThreadClient, ThreadServer
@@ -18,6 +19,7 @@ __all__ = [
     "Grpc",
     "Lcm",
     "Portal",
+    "Rclpy",
     "Shm",
     "Shmf",
     "Thread",

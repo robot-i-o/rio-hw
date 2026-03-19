@@ -369,6 +369,7 @@ def test_pub_only(middleware, workload):
     def warmup(i, client):
         result = _poll(client.get_state)
         assert result is not None, f"Node {i}: Timed out waiting for data"
+        assert np.sum(result["value"]) != 0, f"Node {i}: Published data should be nonzero"
 
     def operate(_i, client):
         client.get_state()

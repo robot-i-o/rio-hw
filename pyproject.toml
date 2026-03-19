@@ -75,8 +75,10 @@ interfaces = [
     # "xrobotoolkit_sdk",  # xrobotoolkit
 ]
 middlewares = [
+    "grpcio-tools",  # grpc
     "lcm",
     "portal",
+    # "rclpy",  # rclpy (ros2)
     "atomics",  # shm, shmf
     "eclipse-zenoh",  # zenoh
     "zerorpc",
