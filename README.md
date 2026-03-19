@@ -29,7 +29,7 @@ uv sync --all-extras
 
 ### Cameras
 
-Realsense:
+Realsense: [`docs/cameras/realsense.md`](docs/cameras/realsense.md)
 ```bash
 sudo ./scripts/setup/realsense.sh
 # verify install
