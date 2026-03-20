@@ -78,7 +78,8 @@ middlewares = [
     "grpcio-tools",  # grpc
     "lcm",
     "portal",
-    # "rclpy",  # rclpy (ros2)
+    # "rclpy",  # (ros2)
+    "roslibpy",  # (rosbridge w/o local ros2 dependency)
     "atomics",  # shm, shmf
     "eclipse-zenoh",  # zenoh
     "zerorpc",

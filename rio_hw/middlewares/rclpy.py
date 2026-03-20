@@ -151,8 +151,8 @@ class RclpyServer(th.Thread, Node):
         if topic is None:
             topic = f"{self.__nodename__}/p{port}"
         self.topic = topic
-        self.addr = addr
         self.qos_depth = qos_depth
+        self.addr = addr
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
@@ -277,8 +277,8 @@ class RclpyClient(Node):
         if topic is None:
             topic = f"{self.__nodename__}/p{port}"
         self.topic = topic
-        self.addr = addr
         self.qos_depth = qos_depth
+        self.addr = addr
         self.freq = freq
         self.max_buffer_size = max_buffer_size
         self.max_queue_size = max_queue_size
