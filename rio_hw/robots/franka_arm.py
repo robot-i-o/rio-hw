@@ -32,8 +32,6 @@ class RobotController(Enum):
     TASK_VEL = auto()
     JOINT_VEL = auto()
     TASK_IMPEDANCE = auto()
-    JOINT_IMPEDANCE = auto()
-    TASK_OSC = auto()
 
 
 RobotInfo = {
@@ -47,9 +45,6 @@ class RequestType(Enum):
     MOVEJ = auto()
     SPEEDL = auto()
     SPEEDJ = auto()
-    IMPEDANCEL = auto()
-    IMPEDANCEJ = auto()
-    OSCL = auto()
 
 
 class FrankaArm(Node):
@@ -151,6 +146,7 @@ class FrankaArm(Node):
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
             RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_eef_speed",)),
             RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_joint_qd",)),
+            RobotController.TASK_IMPEDANCE: (RequestType.MOVEL, ("target_eef_pose",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
@@ -235,7 +231,7 @@ class FrankaArm(Node):
             not_pub_ready = True
             while not self.exit_event.is_set():
                 t_now = time.now()
-                if self.robot_controller == RobotController.TASK_POS:
+                if self.robot_controller in (RobotController.TASK_POS, RobotController.TASK_IMPEDANCE):
                     if pose_interp is not None:
                         pose_command = pose_interp(t_now)
                     else:

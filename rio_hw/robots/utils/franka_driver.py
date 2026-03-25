@@ -241,14 +241,7 @@ class FrankaPolymetis:
         return state
 
     def moveL(self, pose, wait=False):
-        if isinstance(pose, np.ndarray):
-            pose = pose.tolist()
-
-        if self._mode != "cartesian":
-            self.client.start_cartesian_impedance(self.Kx, self.Kxd)
-            self._mode = "cartesian"
-
-        self.client.update_desired_ee_pose(pose)
+        return self.impedanceL(pose, wait=wait)
 
     def moveJ(self, jointq, wait=False):
         if isinstance(jointq, np.ndarray):
@@ -261,6 +254,16 @@ class FrankaPolymetis:
             self._mode = "joint"
 
         self.client.update_desired_joint_positions(jointq)
+
+    def impedanceL(self, pose, wait=False):
+        if isinstance(pose, np.ndarray):
+            pose = pose.tolist()
+
+        if self._mode != "cartesian":
+            self.client.start_cartesian_impedance(self.Kx, self.Kxd)
+            self._mode = "cartesian"
+
+        self.client.update_desired_ee_pose(pose)
 
 
 class FrankaPylibfranka:
