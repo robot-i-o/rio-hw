@@ -1,6 +1,6 @@
+import asyncio
 import pathlib
 import queue
-from asyncio import sleep
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -182,7 +182,7 @@ class Vuer(Node):
                             ),
                             to="bgChildren",
                         )
-                    await sleep(1.0 / self.freq)
+                    await asyncio.sleep(1.0 / self.freq)
             except Exception as e:
                 print(e)
 
