@@ -45,6 +45,7 @@ class RobotController(Enum):
     JOINT_POS = auto()
     TASK_VEL = auto()
     JOINT_VEL = auto()
+    TASK_IMPEDANCE = auto()
 
 
 class RequestType(Enum):
@@ -80,6 +81,7 @@ class XarmArm(Node):
         joints_init=None,
         joints_init_speed=1.05,
         joints_lowpass_alpha=0.1,
+        impedance_params: dict | None = None,
         soft_real_time=False,
         dtype=np.float32,
         *,
@@ -135,6 +137,17 @@ class XarmArm(Node):
         self.joints_init = joints_init
         self.joints_init_speed = joints_init_speed
         self.joints_lowpass_alpha = joints_lowpass_alpha
+        _impedance_defaults = {
+            "K_pos": 800.0,  #  x/y/z linear stiffness coefficient, range: 0 ~ 2000 (N/m)
+            "K_ori": 8.0,  #  Rx/Ry/Rz rotational stiffness coefficient, range: 0 ~ 20 (Nm/rad)
+            # for M and J, smaller value means less effort to drive the arm, but may also be less stable, please be careful.
+            "M": 0.04,  #  x/y/z equivalent mass; range: 0.02 ~ 1 kg
+            "J_scale": 0.01,  #  Rx/Ry/Rz equivalent moment of inertia, range: 1e-4 ~ 0.01 (Kg*m^2)
+            "c_axis": [1, 1, 1, 1, 1, 1],  # compliant axes (translation, rotation)
+            "ref_frame": 0,  # 0 : base , 1 : tool
+            "ft_sensor_zero": False,
+        }
+        self.impedance_params = {**_impedance_defaults, **(impedance_params or {})}
         self.soft_real_time = soft_real_time
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
@@ -151,6 +164,7 @@ class XarmArm(Node):
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
             RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_eef_twist",)),
             RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_joint_qd",)),
+            RobotController.TASK_IMPEDANCE: (RequestType.MOVEL, ("target_eef_pose",)),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
@@ -185,7 +199,10 @@ class XarmArm(Node):
             size = XArmSocket.bytes_to_u32(buffer[:4])
 
             # Main loop
-            rate = time.Rate(XArmSocket.FREQ)
+            freq = XArmSocket.FREQ
+            if self.robot_controller == RobotController.TASK_IMPEDANCE:
+                freq = XArmSocket.FREQ_FT
+            rate = time.Rate(freq)
             not_pub_ready = True
             while not self.exit_event.is_set():
                 buffer += sock.recv(size - len(buffer))
@@ -260,7 +277,28 @@ class XarmArm(Node):
             # arm.reset(wait=True)
             # arm.move_gohome(wait=True)
 
-            if self.robot_controller == RobotController.TASK_POS:
+            if self.robot_controller == RobotController.TASK_IMPEDANCE:
+                K_pos, K_ori = self.impedance_params["K_pos"], self.impedance_params["K_ori"]
+                M = self.impedance_params["M"]
+                J = M * self.impedance_params["J_scale"]
+                ref_frame, c_axis = self.impedance_params["ref_frame"], self.impedance_params["c_axis"]
+
+                arm.set_ft_sensor_admittance_parameters(
+                    ref_frame,
+                    c_axis,
+                    M=[M, M, M, J, J, J],
+                    K=[K_pos, K_pos, K_pos, K_ori, K_ori, K_ori],
+                    B=[0]*6,  # B(damping) is reserved, give zeros
+                )
+                arm.set_ft_sensor_enable(1)
+
+                # will overwrite previous sensor zero and payload configuration
+                if self.impedance_params["ft_sensor_zero"]:
+                    arm.set_ft_sensor_zero()  # remove this if zero_offset and payload already identified & compensated!
+                time.sleep(0.2)  # wait for writing zero operation to take effect, do not remove
+                arm.set_ft_sensor_mode(1)  # activate admittance mode
+
+            if self.robot_controller in (RobotController.TASK_POS, RobotController.TASK_IMPEDANCE):
                 arm.set_mode(1)  # 1: servo motion mode
             elif self.robot_controller == RobotController.JOINT_POS:
                 arm.set_mode(1)  # 1: servo motion mode
@@ -271,7 +309,7 @@ class XarmArm(Node):
             arm.set_state(0)
             time.sleep(0.1)
 
-            if self.robot_controller == RobotController.TASK_POS:
+            if self.robot_controller in (RobotController.TASK_POS, RobotController.TASK_IMPEDANCE):
                 code, curr_pose = arm.get_position_aa()
                 assert code == 0
                 curr_pose = np.array(curr_pose, dtype=self.dtype)
@@ -311,7 +349,7 @@ class XarmArm(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
                 # send command to robot
-                if self.robot_controller == RobotController.TASK_POS:
+                if self.robot_controller in (RobotController.TASK_POS, RobotController.TASK_IMPEDANCE):
                     if pose_interp is not None:
                         pose_command = pose_interp(t_now)
                     else:
@@ -387,6 +425,9 @@ class XarmArm(Node):
             arm.set_servo_angle(angle=zero_angle_delta, wait=True, relative=True, timeout=0.5)
 
             # terminate
+            if self.robot_controller == RobotController.TASK_IMPEDANCE:
+                arm.set_ft_sensor_mode(0)
+                arm.set_ft_sensor_enable(0)
             arm.set_mode(0)
             arm.set_state(0)
             # arm.reset(wait=True)

@@ -27,3 +27,5 @@ http://localhost:18333/
 ## FAQ
 
 - Change Settings -> General -> Manual Mode Sensitivity to 5, to make it easier to move the robot during Manual Mode.
+
+- Force-Torque sensor: Settings -> Externals -> Torque Sensor, Enable and do Payload Identification.
