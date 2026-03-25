@@ -288,7 +288,7 @@ class XarmArm(Node):
                     c_axis,
                     M=[M, M, M, J, J, J],
                     K=[K_pos, K_pos, K_pos, K_ori, K_ori, K_ori],
-                    B=[0]*6,  # B(damping) is reserved, give zeros
+                    B=[0] * 6,  # B(damping) is reserved, give zeros
                 )
                 arm.set_ft_sensor_enable(1)
 
