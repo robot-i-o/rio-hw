@@ -24,6 +24,19 @@ def make_node(mw, module, node, node_kwargs):
 
 
 class RealEnv:
+    class IntegratedGripper:
+        """Wraps an arm_gripper node to expose only the integrated gripper api."""
+
+        def __init__(self, arm_client):
+            self._arm = arm_client
+
+        def get_state(self, *args, **kwargs):
+            state = self._arm.get_state(*args, **kwargs)
+            return {k: v for k, v in state.items() if k.startswith("gripper_")}
+
+        def moveG(self, *args, **kwargs):
+            return self._arm.moveG(*args, **kwargs)
+
     @classmethod
     def make_nodes(cls, args, **kwargs):
         servers = {}
@@ -59,15 +72,21 @@ class RealEnv:
 
         # gripper
         try:
-            gripper_module = kwargs.get("gripper_module", "robots")
-            gripper_cfg = kwargs.get("gripper_cfg", asdict(args.gripper_cfg))
-            servers["gripper"], clients["gripper"] = make_node(args.mw, gripper_module, args.gripper, gripper_cfg)
+            if getattr(args, "gripper", None) in ("arm",):
+                servers["gripper"], clients["gripper"] = None, None
+            else:
+                gripper_module = kwargs.get("gripper_module", "robots")
+                gripper_cfg = kwargs.get("gripper_cfg", asdict(args.gripper_cfg))
+                servers["gripper"], clients["gripper"] = make_node(args.mw, gripper_module, args.gripper, gripper_cfg)
         except AttributeError:
             servers["gripper"], clients["gripper"] = None, None
         try:
-            gripper2_module = kwargs.get("gripper2_module", "robots")
-            gripper2_cfg = kwargs.get("gripper2_cfg", asdict(args.gripper2_cfg))
-            servers["gripper2"], clients["gripper2"] = make_node(args.mw, gripper2_module, args.gripper2, gripper2_cfg)
+            if getattr(args, "gripper2", None) in ("arm2",):
+                servers["gripper2"], clients["gripper2"] = None, None
+            else:
+                gripper2_module = kwargs.get("gripper2_module", "robots")
+                gripper2_cfg = kwargs.get("gripper2_cfg", asdict(args.gripper2_cfg))
+                servers["gripper2"], clients["gripper2"] = make_node(args.mw, gripper2_module, args.gripper2, gripper2_cfg)
         except AttributeError:
             servers["gripper2"], clients["gripper2"] = None, None
 

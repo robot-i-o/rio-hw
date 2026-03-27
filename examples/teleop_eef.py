@@ -260,7 +260,13 @@ def main(args):
             clients["arm2"]() if clients["arm2"] else nullcontext() as arm2,
             clients["gripper2"]() if clients["gripper2"] else nullcontext() as gripper2,
         ):
-            teleop_eef(args, teleop, arm, gripper, arm2, gripper2)
+            _gripper, _gripper2 = gripper, gripper2
+            if getattr(args, "gripper", None) in ("arm",) and arm:
+                _gripper = RealEnv.IntegratedGripper(arm)
+            if getattr(args, "gripper2", None) in ("arm2",) and arm2:
+                _gripper2 = RealEnv.IntegratedGripper(arm2)
+
+            teleop_eef(args, teleop, arm, _gripper, arm2, _gripper2)
 
 
 @dataclass
