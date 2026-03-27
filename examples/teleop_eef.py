@@ -178,7 +178,7 @@ class Robot:
         return target_pos
 
 
-def teleop_eef(args, teleop, arm, gripper, arm2, gripper2):
+def teleop_eef(args, teleop, arm, arm2, gripper, gripper2):
     from rio_hw import time
 
     arm_target_pose = arm.get_state()["eef_pose"] if arm else None
@@ -256,8 +256,8 @@ def main(args):
         with (
             clients["teleop"]() as teleop,
             clients["arm"]() if clients["arm"] else nullcontext() as arm,
-            clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
             clients["arm2"]() if clients["arm2"] else nullcontext() as arm2,
+            clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
             clients["gripper2"]() if clients["gripper2"] else nullcontext() as gripper2,
         ):
             _gripper, _gripper2 = gripper, gripper2
@@ -266,7 +266,7 @@ def main(args):
             if getattr(args, "gripper2", None) in ("arm2",) and arm2:
                 _gripper2 = RealEnv.IntegratedGripper(arm2)
 
-            teleop_eef(args, teleop, arm, _gripper, arm2, _gripper2)
+            teleop_eef(args, teleop, arm, arm2, _gripper, _gripper2)
 
 
 @dataclass

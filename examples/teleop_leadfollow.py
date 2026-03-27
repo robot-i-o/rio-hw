@@ -39,7 +39,7 @@ def check_alignment(lead_joints, target_joints, max_joint_delta=0.8):
 
     # Show detailed joint-by-joint comparison
     print("\nJoint-by-joint alignment:")
-    print("Joint | Leader (°) | Follower (°) | Delta (°)")
+    print("Joint | Lead (°) | Follow (°) | Delta (°)")
     print("------|-----------|-----------|----------")
     for i in range(len(lead_joints)):
         lead_deg = np.rad2deg(lead_joints[i])
@@ -50,11 +50,11 @@ def check_alignment(lead_joints, target_joints, max_joint_delta=0.8):
     if max_delta > max_joint_delta:
         max_joint_idx = np.argmax(joint_delta)
         print(f"Joint {max_joint_idx + 1} has the largest delta: {np.rad2deg(max_delta):.1f}°")
-        raise RuntimeError("Align leader to match follower robot initial pose")
+        raise RuntimeError("Align lead to match follow robot initial pose")
     print(f"\n✓ Alignment OK (max delta: {np.rad2deg(max_delta):.1f}°)")
 
 
-def teleop_leadfollow(args, teleop, teleop2, arm_lead, gripper_lead, arm2_lead, gripper2_lead, arm, gripper, arm2, gripper2):
+def teleop_leadfollow(args, teleop, teleop2, arm_lead, arm2_lead, gripper_lead, gripper2_lead, arm, arm2, gripper, gripper2):
     gello = teleop
     gello2 = teleop2
 
@@ -63,7 +63,7 @@ def teleop_leadfollow(args, teleop, teleop2, arm_lead, gripper_lead, arm2_lead, 
     gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
     gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
 
-    print("Checking leader-follower alignment...")
+    print("Checking lead-follow alignment...")
     if arm:
         if gello:
             lead_joint_q = gello.get_state()["joint_q"]
@@ -179,29 +179,29 @@ def main(args):
             clients["teleop"]() as teleop,
             clients["teleop2"]() if clients["teleop2"] else nullcontext() as teleop2,
             clients["arm_lead"]() if clients.get("arm_lead") else nullcontext() as arm_lead,
-            clients["gripper_lead"]() if clients.get("gripper_lead") else nullcontext() as gripper_lead,
             clients["arm2_lead"]() if clients.get("arm2_lead") else nullcontext() as arm2_lead,
+            clients["gripper_lead"]() if clients.get("gripper_lead") else nullcontext() as gripper_lead,
             clients["gripper2_lead"]() if clients.get("gripper2_lead") else nullcontext() as gripper2_lead,
             clients["arm"]() if clients["arm"] else nullcontext() as arm,
-            clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
             clients["arm2"]() if clients["arm2"] else nullcontext() as arm2,
+            clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
             clients["gripper2"]() if clients["gripper2"] else nullcontext() as gripper2,
         ):
-            # Follower grippers
-            _gripper, _gripper2 = gripper, gripper2
-            if getattr(args, "gripper", None) in ("arm",) and arm:
-                _gripper = RealEnv.IntegratedGripper(arm)
-            if getattr(args, "gripper2", None) in ("arm2",) and arm2:
-                _gripper2 = RealEnv.IntegratedGripper(arm2)
             # Lead grippers
             _gripper_lead, _gripper2_lead = gripper_lead, gripper2_lead
             if getattr(args, "gripper_lead", None) in ("arm_lead",) and arm_lead:
                 _gripper_lead = RealEnv.IntegratedGripper(arm_lead)
             if getattr(args, "gripper2_lead", None) in ("arm2_lead",) and arm2_lead:
                 _gripper2_lead = RealEnv.IntegratedGripper(arm2_lead)
+            # Follow grippers
+            _gripper, _gripper2 = gripper, gripper2
+            if getattr(args, "gripper", None) in ("arm",) and arm:
+                _gripper = RealEnv.IntegratedGripper(arm)
+            if getattr(args, "gripper2", None) in ("arm2",) and arm2:
+                _gripper2 = RealEnv.IntegratedGripper(arm2)
 
             teleop_leadfollow(
-                args, teleop, teleop2, arm_lead, _gripper_lead, arm2_lead, _gripper2_lead, arm, _gripper, arm2, _gripper2
+                args, teleop, teleop2, arm_lead, arm2_lead, _gripper_lead, _gripper2_lead, arm, arm2, _gripper, _gripper2
             )
 
 
