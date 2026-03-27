@@ -56,6 +56,44 @@ class RealEnv:
         except AttributeError:
             servers["teleop2"], clients["teleop2"] = None, None
 
+        # arm_lead
+        try:
+            arm_lead_module = kwargs.get("arm_lead_module", "robots")
+            arm_lead_cfg = kwargs.get("arm_lead_cfg", asdict(args.arm_lead_cfg))
+            servers["arm_lead"], clients["arm_lead"] = make_node(args.mw, arm_lead_module, args.arm_lead, arm_lead_cfg)
+        except AttributeError:
+            servers["arm_lead"], clients["arm_lead"] = None, None
+        try:
+            arm2_lead_module = kwargs.get("arm2_lead_module", "robots")
+            arm2_lead_cfg = kwargs.get("arm2_lead_cfg", asdict(args.arm2_lead_cfg))
+            servers["arm2_lead"], clients["arm2_lead"] = make_node(args.mw, arm2_lead_module, args.arm2_lead, arm2_lead_cfg)
+        except AttributeError:
+            servers["arm2_lead"], clients["arm2_lead"] = None, None
+
+        # gripper_lead
+        try:
+            if getattr(args, "gripper_lead", None) in ("arm_lead",):
+                servers["gripper_lead"], clients["gripper_lead"] = None, None
+            else:
+                gripper_lead_module = kwargs.get("gripper_lead_module", "robots")
+                gripper_lead_cfg = kwargs.get("gripper_lead_cfg", asdict(args.gripper_lead_cfg))
+                servers["gripper_lead"], clients["gripper_lead"] = make_node(
+                    args.mw, gripper_lead_module, args.gripper_lead, gripper_lead_cfg
+                )
+        except AttributeError:
+            servers["gripper_lead"], clients["gripper_lead"] = None, None
+        try:
+            if getattr(args, "gripper2_lead", None) in ("arm2_lead",):
+                servers["gripper2_lead"], clients["gripper2_lead"] = None, None
+            else:
+                gripper2_lead_module = kwargs.get("gripper2_lead_module", "robots")
+                gripper2_lead_cfg = kwargs.get("gripper2_lead_cfg", asdict(args.gripper2_lead_cfg))
+                servers["gripper2_lead"], clients["gripper2_lead"] = make_node(
+                    args.mw, gripper2_lead_module, args.gripper2_lead, gripper2_lead_cfg
+                )
+        except AttributeError:
+            servers["gripper2_lead"], clients["gripper2_lead"] = None, None
+
         # arm
         try:
             arm_module = kwargs.get("arm_module", "robots")

@@ -33,28 +33,28 @@ class Robot:
         return target_pos
 
 
-def check_gello_alignment(gello_joints, target_joints, max_joint_delta=0.8):
-    joint_delta = np.abs(gello_joints - target_joints)
+def check_alignment(lead_joints, target_joints, max_joint_delta=0.8):
+    joint_delta = np.abs(lead_joints - target_joints)
     max_delta = joint_delta.max()
 
     # Show detailed joint-by-joint comparison
     print("\nJoint-by-joint alignment:")
-    print("Joint | Gello (°) | Robot (°) | Delta (°)")
+    print("Joint | Leader (°) | Follower (°) | Delta (°)")
     print("------|-----------|-----------|----------")
-    for i in range(len(gello_joints)):
-        gello_deg = np.rad2deg(gello_joints[i])
+    for i in range(len(lead_joints)):
+        lead_deg = np.rad2deg(lead_joints[i])
         robot_deg = np.rad2deg(target_joints[i])
         delta_deg = np.rad2deg(joint_delta[i])
         status = "❌" if joint_delta[i] > max_joint_delta else "✅"
-        print(f"  {i + 1}   | {gello_deg:8.1f}  | {robot_deg:8.1f}  | {delta_deg:6.1f} {status}")
+        print(f"  {i + 1}   | {lead_deg:8.1f}  | {robot_deg:8.1f}  | {delta_deg:6.1f} {status}")
     if max_delta > max_joint_delta:
         max_joint_idx = np.argmax(joint_delta)
         print(f"Joint {max_joint_idx + 1} has the largest delta: {np.rad2deg(max_delta):.1f}°")
-        raise RuntimeError("Align Gello to match robot initial pose")
+        raise RuntimeError("Align leader to match follower robot initial pose")
     print(f"\n✓ Alignment OK (max delta: {np.rad2deg(max_delta):.1f}°)")
 
 
-def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
+def teleop_leadfollow(args, teleop, teleop2, arm_lead, gripper_lead, arm2_lead, gripper2_lead, arm, gripper, arm2, gripper2):
     gello = teleop
     gello2 = teleop2
 
@@ -63,12 +63,19 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
     gripper_target_pos = gripper.get_state()["gripper_position"] if gripper else None
     gripper2_target_pos = gripper2.get_state()["gripper_position"] if gripper2 else None
 
-    print("Checking Gello alignment...")
-    gello_joint_q = gello.get_state()["joint_q"]
-    check_gello_alignment(gello_joint_q, arm_target_joint_q)
+    print("Checking leader-follower alignment...")
+    if arm:
+        if gello:
+            lead_joint_q = gello.get_state()["joint_q"]
+        if arm_lead:
+            lead_joint_q = arm_lead.get_state()["joint_q"]
+        check_alignment(lead_joint_q, arm_target_joint_q)
     if arm2:
-        gello2_joint_q = gello2.get_state()["joint_q"] if gello2 else gello_joint_q
-        check_gello_alignment(gello2_joint_q, arm2_target_joint_q)
+        if gello2:
+            lead2_joint_q = gello2.get_state()["joint_q"]
+        if arm2_lead:
+            lead2_joint_q = arm2_lead.get_state()["joint_q"]
+        check_alignment(lead2_joint_q, arm2_target_joint_q)
 
     input("Press Enter to start")
     try:
@@ -85,40 +92,53 @@ def teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2):
 
             time.precise_wait(t_sample)
             # get teleop command
-            gello_state = gello.get_state()
-            gello_joint_q = gello_state["joint_q"]
-            gello_gripper_pos = gello_state["gripper_position"]
-            if gello2:
-                gello2_state = gello2.get_state()
-                gello2_joint_q = gello2_state["joint_q"]
-                gello2_gripper_pos = gello2_state["gripper_position"]
+            if gello:
+                lead_state = gello.get_state()
+                lead_joint_q = lead_state["joint_q"]
+                lead_gripper_pos = lead_state["gripper_position"]
+            if arm_lead:
+                lead_joint_q = arm_lead.get_state()["joint_q"]
+            if gripper_lead:
+                lead_gripper_pos = gripper_lead.get_state()["gripper_position"]
 
+            if gello2:
+                lead2_state = gello2.get_state()
+                lead2_joint_q = lead2_state["joint_q"]
+                lead2_gripper_pos = lead2_state["gripper_position"]
+            if arm2_lead:
+                lead2_joint_q = arm2_lead.get_state()["joint_q"]
+            if gripper2_lead:
+                lead2_gripper_pos = gripper2_lead.get_state()["gripper_position"]
+
+            # move robots
             if arm:
                 _t_cmd_target = t_cmd_target + args.arm_latency
-                arm_target_joint_q = Robot.move_arm(arm, freq, _t_cmd_target, gello_joint_q, arm_target_joint_q)
+                arm_target_joint_q = Robot.move_arm(arm, freq, _t_cmd_target, lead_joint_q, arm_target_joint_q)
 
             if arm2:
-                _gello_joint_q = gello2_joint_q if gello2 else gello_joint_q
                 _t_cmd_target = t_cmd_target + args.arm_latency
-                arm2_target_joint_q = Robot.move_arm(arm2, freq, _t_cmd_target, _gello_joint_q, arm2_target_joint_q)
+                arm2_target_joint_q = Robot.move_arm(arm2, freq, _t_cmd_target, lead2_joint_q, arm2_target_joint_q)
 
             if gripper:
                 _t_cmd_target = t_cmd_target + args.gripper_latency
-                gripper_target_pos = Robot.move_gripper(gripper, freq, _t_cmd_target, gello_gripper_pos, gripper_target_pos)
+                gripper_target_pos = Robot.move_gripper(gripper, freq, _t_cmd_target, lead_gripper_pos, gripper_target_pos)
 
             if gripper2:
-                _gello_gripper_pos = gello2_gripper_pos if gello2 else gello_gripper_pos
                 _t_cmd_target = t_cmd_target + args.gripper_latency
-                gripper2_target_pos = Robot.move_gripper(gripper2, freq, _t_cmd_target, _gello_gripper_pos, gripper2_target_pos)
+                gripper2_target_pos = Robot.move_gripper(gripper2, freq, _t_cmd_target, lead2_gripper_pos, gripper2_target_pos)
 
             # logging
             if it % freq == 0:
                 print(
                     f"t: {t_cycle_end - t_start:.3f}s",
                     "|",
-                    f"gello_joint_q: {gello_joint_q}",
+                    f"lead_joint_q: {lead_joint_q}",
                     "|",
-                    f"gello_gripper_pos: {gello_gripper_pos:.2f}",
+                    f"lead_gripper_pos: {lead_gripper_pos:.2f}",
+                    "|",
+                    f"lead2_joint_q: {lead2_joint_q}",
+                    "|",
+                    f"lead2_gripper_pos: {lead2_gripper_pos:.2f}",
                 )
 
             time.precise_wait(t_cycle_end)
@@ -141,6 +161,14 @@ def main(args):
         start_joints = args.teleop2_cfg.start_joints if args.teleop2 else args.teleop_cfg.start_joints
         arm2_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
         kwargs["arm2_cfg"] = arm2_cfg
+    if hasattr(args, "arm_lead") and args.arm_lead:
+        arm_lead_cfg = asdict(args.arm_lead_cfg)
+        arm_lead_cfg["robot_controller"] = "joint_pos"
+        kwargs["arm_lead_cfg"] = arm_lead_cfg
+    if hasattr(args, "arm2_lead") and args.arm2_lead:
+        arm2_lead_cfg = asdict(args.arm2_lead_cfg)
+        arm2_lead_cfg["robot_controller"] = "joint_pos"
+        kwargs["arm2_lead_cfg"] = arm2_lead_cfg
 
     servers, clients = RealEnv.make_nodes(args, **kwargs)
 
@@ -150,12 +178,31 @@ def main(args):
         with (
             clients["teleop"]() as teleop,
             clients["teleop2"]() if clients["teleop2"] else nullcontext() as teleop2,
+            clients["arm_lead"]() if clients.get("arm_lead") else nullcontext() as arm_lead,
+            clients["gripper_lead"]() if clients.get("gripper_lead") else nullcontext() as gripper_lead,
+            clients["arm2_lead"]() if clients.get("arm2_lead") else nullcontext() as arm2_lead,
+            clients["gripper2_lead"]() if clients.get("gripper2_lead") else nullcontext() as gripper2_lead,
             clients["arm"]() if clients["arm"] else nullcontext() as arm,
             clients["gripper"]() if clients["gripper"] else nullcontext() as gripper,
             clients["arm2"]() if clients["arm2"] else nullcontext() as arm2,
             clients["gripper2"]() if clients["gripper2"] else nullcontext() as gripper2,
         ):
-            teleop_gello(args, teleop, teleop2, arm, gripper, arm2, gripper2)
+            # Follower grippers
+            _gripper, _gripper2 = gripper, gripper2
+            if getattr(args, "gripper", None) in ("arm",) and arm:
+                _gripper = RealEnv.IntegratedGripper(arm)
+            if getattr(args, "gripper2", None) in ("arm2",) and arm2:
+                _gripper2 = RealEnv.IntegratedGripper(arm2)
+            # Lead grippers
+            _gripper_lead, _gripper2_lead = gripper_lead, gripper2_lead
+            if getattr(args, "gripper_lead", None) in ("arm_lead",) and arm_lead:
+                _gripper_lead = RealEnv.IntegratedGripper(arm_lead)
+            if getattr(args, "gripper2_lead", None) in ("arm2_lead",) and arm2_lead:
+                _gripper2_lead = RealEnv.IntegratedGripper(arm2_lead)
+
+            teleop_leadfollow(
+                args, teleop, teleop2, arm_lead, _gripper_lead, arm2_lead, _gripper2_lead, arm, _gripper, arm2, _gripper2
+            )
 
 
 @dataclass
