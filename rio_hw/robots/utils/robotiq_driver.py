@@ -61,7 +61,6 @@ class RobotiqDriver:
                     speed * 0b100000000 + force,
                 ],
             )
-
         else:
             raise ValueError(f"Unknown control mode: {mode}")
 
@@ -97,4 +96,5 @@ class RobotiqDriver:
         return robot_state
 
     def moveG(self, target_pos):
+        target_pos = max(0.0, min(1.0, target_pos))
         self._move_gripper(target_pos, mode=self.control_mode)
