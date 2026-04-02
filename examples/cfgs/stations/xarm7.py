@@ -11,6 +11,7 @@ class Xarm7Station:
         robot_model: str = "xarm7"
         max_pos_speed: float = 0.25
         max_rot_speed: float = 0.6
+        robot_controller: str = "task_pos"
 
     @dataclass
     class GripperCfg:

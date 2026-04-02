@@ -2,10 +2,10 @@ import os
 from dataclasses import asdict
 from importlib import import_module
 
-from . import station_cfgs
+from .cfgs import stations as StationCfgs
 
-STATION = os.environ.get("STATION", station_cfgs.__all__[-1])
-StationCfg = getattr(station_cfgs, STATION)
+STATION = os.environ.get("STATION", StationCfgs.__all__[-1])
+StationCfg = getattr(StationCfgs, STATION)
 
 PACKAGE = os.environ.get("_PACKAGE", "rio_hw")
 
