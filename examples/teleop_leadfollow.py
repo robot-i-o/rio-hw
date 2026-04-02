@@ -6,8 +6,6 @@ import numpy as np
 import tyro
 import yaml
 
-from rio_hw import time
-
 from ._real_env import RealEnv, StationCfg
 
 
@@ -55,6 +53,8 @@ def check_alignment(lead_joints, target_joints, max_joint_delta=0.8):
 
 
 def teleop_leadfollow(args, teleop, teleop2, arm_lead, arm2_lead, gripper_lead, gripper2_lead, arm, arm2, gripper, gripper2):
+    from rio_hw import time
+
     gello = teleop
     gello2 = teleop2
 
