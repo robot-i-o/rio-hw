@@ -7,13 +7,15 @@ from . import station_cfgs
 STATION = os.environ.get("STATION", station_cfgs.__all__[-1])
 StationCfg = getattr(station_cfgs, STATION)
 
+PACKAGE = os.environ.get("_PACKAGE", "rio_hw")
+
 
 def make_node(mw, module, node, node_kwargs):
     if node is None:
         node_server = None
         node_client = None
     else:
-        module = import_module(f"rio_hw.{module}")
+        module = import_module(module)
         NodeServer = getattr(module, f"{node}Server", None)
         NodeClient = getattr(module, f"{node}Client", None)
         if NodeServer is None or NodeClient is None:
@@ -44,13 +46,13 @@ class RealEnv:
 
         # teleop
         try:
-            teleop_module = kwargs.get("teleop_module", "interfaces")
+            teleop_module = kwargs.get("teleop_module", f"{PACKAGE}.interfaces")
             teleop_cfg = kwargs.get("teleop_cfg", asdict(args.teleop_cfg))
             servers["teleop"], clients["teleop"] = make_node(args.mw, teleop_module, args.teleop, teleop_cfg)
         except AttributeError:
             servers["teleop"], clients["teleop"] = None, None
         try:
-            teleop2_module = kwargs.get("teleop2_module", "interfaces")
+            teleop2_module = kwargs.get("teleop2_module", f"{PACKAGE}.interfaces")
             teleop2_cfg = kwargs.get("teleop2_cfg", asdict(args.teleop2_cfg))
             servers["teleop2"], clients["teleop2"] = make_node(args.mw, teleop2_module, args.teleop2, teleop2_cfg)
         except AttributeError:
@@ -58,13 +60,13 @@ class RealEnv:
 
         # arm_lead
         try:
-            arm_lead_module = kwargs.get("arm_lead_module", "robots")
+            arm_lead_module = kwargs.get("arm_lead_module", f"{PACKAGE}.robots")
             arm_lead_cfg = kwargs.get("arm_lead_cfg", asdict(args.arm_lead_cfg))
             servers["arm_lead"], clients["arm_lead"] = make_node(args.mw, arm_lead_module, args.arm_lead, arm_lead_cfg)
         except AttributeError:
             servers["arm_lead"], clients["arm_lead"] = None, None
         try:
-            arm2_lead_module = kwargs.get("arm2_lead_module", "robots")
+            arm2_lead_module = kwargs.get("arm2_lead_module", f"{PACKAGE}.robots")
             arm2_lead_cfg = kwargs.get("arm2_lead_cfg", asdict(args.arm2_lead_cfg))
             servers["arm2_lead"], clients["arm2_lead"] = make_node(args.mw, arm2_lead_module, args.arm2_lead, arm2_lead_cfg)
         except AttributeError:
@@ -75,7 +77,7 @@ class RealEnv:
             if getattr(args, "gripper_lead", None) in ("arm_lead",):
                 servers["gripper_lead"], clients["gripper_lead"] = None, None
             else:
-                gripper_lead_module = kwargs.get("gripper_lead_module", "robots")
+                gripper_lead_module = kwargs.get("gripper_lead_module", f"{PACKAGE}.robots")
                 gripper_lead_cfg = kwargs.get("gripper_lead_cfg", asdict(args.gripper_lead_cfg))
                 servers["gripper_lead"], clients["gripper_lead"] = make_node(
                     args.mw, gripper_lead_module, args.gripper_lead, gripper_lead_cfg
@@ -86,7 +88,7 @@ class RealEnv:
             if getattr(args, "gripper2_lead", None) in ("arm2_lead",):
                 servers["gripper2_lead"], clients["gripper2_lead"] = None, None
             else:
-                gripper2_lead_module = kwargs.get("gripper2_lead_module", "robots")
+                gripper2_lead_module = kwargs.get("gripper2_lead_module", f"{PACKAGE}.robots")
                 gripper2_lead_cfg = kwargs.get("gripper2_lead_cfg", asdict(args.gripper2_lead_cfg))
                 servers["gripper2_lead"], clients["gripper2_lead"] = make_node(
                     args.mw, gripper2_lead_module, args.gripper2_lead, gripper2_lead_cfg
@@ -96,13 +98,13 @@ class RealEnv:
 
         # arm
         try:
-            arm_module = kwargs.get("arm_module", "robots")
+            arm_module = kwargs.get("arm_module", f"{PACKAGE}.robots")
             arm_cfg = kwargs.get("arm_cfg", asdict(args.arm_cfg))
             servers["arm"], clients["arm"] = make_node(args.mw, arm_module, args.arm, arm_cfg)
         except AttributeError:
             servers["arm"], clients["arm"] = None, None
         try:
-            arm2_module = kwargs.get("arm2_module", "robots")
+            arm2_module = kwargs.get("arm2_module", f"{PACKAGE}.robots")
             arm2_cfg = kwargs.get("arm2_cfg", asdict(args.arm2_cfg))
             servers["arm2"], clients["arm2"] = make_node(args.mw, arm2_module, args.arm2, arm2_cfg)
         except AttributeError:
@@ -113,7 +115,7 @@ class RealEnv:
             if getattr(args, "gripper", None) in ("arm",):
                 servers["gripper"], clients["gripper"] = None, None
             else:
-                gripper_module = kwargs.get("gripper_module", "robots")
+                gripper_module = kwargs.get("gripper_module", f"{PACKAGE}.robots")
                 gripper_cfg = kwargs.get("gripper_cfg", asdict(args.gripper_cfg))
                 servers["gripper"], clients["gripper"] = make_node(args.mw, gripper_module, args.gripper, gripper_cfg)
         except AttributeError:
@@ -122,24 +124,10 @@ class RealEnv:
             if getattr(args, "gripper2", None) in ("arm2",):
                 servers["gripper2"], clients["gripper2"] = None, None
             else:
-                gripper2_module = kwargs.get("gripper2_module", "robots")
+                gripper2_module = kwargs.get("gripper2_module", f"{PACKAGE}.robots")
                 gripper2_cfg = kwargs.get("gripper2_cfg", asdict(args.gripper2_cfg))
                 servers["gripper2"], clients["gripper2"] = make_node(args.mw, gripper2_module, args.gripper2, gripper2_cfg)
         except AttributeError:
             servers["gripper2"], clients["gripper2"] = None, None
-
-        # hand
-        try:
-            hand_module = kwargs.get("hand_module", "robots")
-            hand_cfg = kwargs.get("hand_cfg", asdict(args.hand_cfg))
-            servers["hand"], clients["hand"] = make_node(args.mw, hand_module, args.hand, hand_cfg)
-        except AttributeError:
-            servers["hand"], clients["hand"] = None, None
-        try:
-            hand2_module = kwargs.get("hand2_module", "robots")
-            hand2_cfg = kwargs.get("hand2_cfg", asdict(args.hand2_cfg))
-            servers["hand2"], clients["hand2"] = make_node(args.mw, hand2_module, args.hand2, hand2_cfg)
-        except AttributeError:
-            servers["hand2"], clients["hand2"] = None, None
 
         return servers, clients
