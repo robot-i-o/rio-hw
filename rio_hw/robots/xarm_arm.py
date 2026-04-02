@@ -250,6 +250,20 @@ class XarmArm(Node):
         arm.set_mode(0)
         arm.set_state(0)
 
+        print_pids = False
+        if print_pids:
+            code, pids = arm._arm.get_servo_all_pids()
+            if code == 0:
+                subset = ["POS_KP", "POS_KD"]
+                for i, joint_pids in enumerate(pids):
+                    print(f"\n=== Joint {i + 1} ===")
+                    for label, val in zip(XArmSocket.SERVO_PIDS, joint_pids, strict=True):
+                        if subset is None or label in subset:
+                            print(f"  {label:>12s}: {val}")
+            else:
+                print(f"Error: code={code}")
+            exit()
+
         # https://help.ufactory.cc/en/articles/3954394-guide-to-run-ufactory-xarm-at-the-maximum-speed
         # arm.set_tcp_jerk(7000)
         # arm.set_tcp_maxacc(...)

@@ -18,19 +18,39 @@ class XArmSocket:
         "eef_pose": [473, 496],  # mm & rad, [x,y,z,rx,ry,rz]
         "eef_twist": [497, 520],  # mm/s & rad/s
         "joint_q": [117, 144],  # rad
-        "joint_qd": [449, 472],  # rad/s
+        "joint_qd": [145, 172],  # rad/s
+        "joint_qdd": [173, 200],  # rad/s^2
         "target_eef_pose": [425, 448],  # mm & rad, [x,y,z,rx,ry,rz]
         "target_eef_twist": [449, 472],  # mm/s & rad/s
         "target_joint_q": [33, 60],  # rad
         "target_joint_qd": [61, 88],  # rad/s
-        "joint_tau": [229, 256],  # N·m
-        "eef_tau": [521, 544],  # N & N·m
+        "target_joint_qdd": [89, 116],  # rad/s^2
+        "joint_torque": [229, 256],  # N·m
+        "eef_torque": [521, 544],  # N & N·m
         "ft_sensor_raw": [689, 712],  # N & N·m, [Fx,Fy,Fz,Tx,Ty,Tz]
         "ft_sensor_filtered": [713, 736],  # N & N·m, [Fx,Fy,Fz,Tx,Ty,Tz]
     }
     PORT = 30000
     FREQ = 250  # Hz
     FREQ_FT = 200  # Hz, with FT sensor attached
+
+    # for get_servo_all_pids()
+    SERVO_PIDS = [
+        "POS_KP",
+        "POS_FWDKP",
+        "POS_PWDTC",
+        "SPD_KP",
+        "SPD_KI",
+        "CURR_KP",
+        "CURR_KI",
+        "SPD_IFILT",
+        "SPD_OFILT",
+        "CURR_IFILT",
+        "POS_KD",
+        "POS_CMDILT",
+        "GET_TEMP",
+        "OVER_TEMP",
+    ]
 
     @staticmethod
     def bytes_to_fp32(bytes_data, is_big_endian=False):
