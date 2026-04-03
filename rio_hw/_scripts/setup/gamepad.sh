@@ -13,7 +13,7 @@ ACTUAL_USER=${SUDO_USER:-$USER}
 ACTUAL_HOME=$(eval echo ~$ACTUAL_USER)
 
 apt update
-apt install -y dkms linux-headers-$(uname -r) git libusb-dev joystick
+apt install -y dkms git libusb-dev joystick
 modprobe uhid
 echo "uhid" > /etc/modules-load.d/uhid.conf
 if [ "$_INSTALL_XPADNEO" != "true" ]; then

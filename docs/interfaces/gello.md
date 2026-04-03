@@ -11,7 +11,7 @@ Reference: [`gello_software`](https://github.com/wuphilipp/gello_software) and [
 
 # 2. Generate YAML config
 # See GELLO orientation in https://github.com/wuphilipp/gello_software?tab=readme-ov-file#1-manual-gello_agent-setup
-python -m scripts.setup.gello.generate_config \
+python -m scripts.setup_gello.generate_config \
 
     # UR5
     --start-joints 0 -1.57 1.57 -1.57 -1.57 0 \
@@ -40,6 +40,7 @@ python -m scripts.setup.gello.generate_config \
 
 # fix error detecting offsets
 sudo usermod -aG dialout $USER
+newgrp dialout
 sudo chmod -R 777 /dev/serial/by-id/
 
 # Set latency timer to 1ms

@@ -179,7 +179,7 @@ def update_config_with_offsets(
     return config
 
 
-def main(args: Args) -> None:
+def generate_config(args: Args) -> None:
     print("=== GELLO YAM Configuration Generator ===\n")
 
     # Step 1: Port detection
@@ -291,5 +291,9 @@ def main(args: Args) -> None:
     print("Configuration files generated successfully!")
 
 
+def main():
+    generate_config(tyro.cli(Args))
+
+
 if __name__ == "__main__":
-    main(tyro.cli(Args))
+    main()

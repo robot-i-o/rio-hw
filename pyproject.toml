@@ -97,8 +97,18 @@ robots = [
     "xarm-python-sdk==1.17.0",  # xarm
 ]
 
+[project.scripts]
+"rio_hw.setup" = "rio_hw._scripts.setup:main"
+"rio_hw.setup_gello" = "rio_hw._scripts.setup_gello.generate_config:main"
+
 [tool.setuptools.packages.find]
 include = ["rio_hw*"]
+
+[tool.setuptools.package-data]
+rio_hw = [
+    "_scripts/setup/*.sh",
+    "_scripts/setup_gello/configs/templates/*.yaml",
+]
 
 [tool.setuptools.dynamic]
 version = { file = ["VERSION"] }
