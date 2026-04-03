@@ -1,8 +1,40 @@
-# RIO-HW Guidelines
+# Development Workflow
 
-## Public API
+**Always use `uv run`, not python**.
 
-## API design rules (naming + structure)
+```sh
+
+# 1. Make changes.
+
+# 2. Type check.
+uv run ty check  # Fast
+uv run pyright  # More thorough, but slower
+
+# 3. Run tests.
+uv run pytest  # Single suite
+uv run pytest <test_file>.py  # Specific file
+
+# 4. Format and lint before committing.
+uv run ruff format
+uv run ruff check --fix
+```
+
+We've bundled common commands into a Makefile for convenience.
+
+```sh
+make format     # Format and lint
+make type       # Type-check
+make check      # make format && make type
+make test       # Run the full test suite
+make docs       # Build documentation
+```
+
+Always run `make check` before committing. This runs formatting, linting,
+and type checking. Do not commit code that fails type checking.
+
+Before creating a PR, ensure all checks pass with `make test`.
+
+## Code style
 
 - **When creating a new node, start from the node template.**
   - copy over `_template/template.py` to `submodule/my_module.py`
@@ -15,28 +47,13 @@
 - **Prefer nested classes when self-contained.**
   - If a helper type or an enum is only meaningful inside one parent class and doesn't need a public identity, define it as a nested class instead of creating a new top-level class/module.
 - **Follow PEP 8 for Python code.**
+- **Use modern Python type-hint syntax.**
+  - Prefer PEP 604 unions: `x | y`, `x | None`. Do not use `typing.Union` or `typing.Optional`.
 - **Use Google-style docstrings.**
   - Write clear, concise docstrings that explain what the function does, its parameters, and its return value.
-
-## Dependencies
-
-- **Avoid adding new required dependencies.** Core should remain lightweight and minimize external requirements. Node-specific dependencies should be isolated within the node's single file implementation.
-- **Strongly prefer not adding new optional dependencies.** If additional functionality requires a new package, carefully consider whether the benefit justifies the added complexity and maintenance burden. When possible, implement functionality using existing dependencies, including Warp functions and kernels, NumPy, or the standard library.
-
-## Tooling: prefer `uv` for running, testing, and benchmarking
-
-We standardize on `uv` for local workflows when available. If `uv` is not installed, fall back to a virtual environment created with `venv` or `conda`.
-
-### Run examples
-
-### Run tests
-
-### Pre-commit (lint/format hooks)
-
-```bash
-uvx pre-commit run -a
-uvx pre-commit install
-```
+  - Keep argument/return types in function annotations, not inline in docstrings.
+  - In `Args:` entries, use `name: description` (not `name (Type): description`).
+- **Avoid new required dependencies.** Strongly prefer not adding optional ones, use existing dependencies like numpy or stdlib.
 
 ## Commit and Pull Request Guidelines
 
