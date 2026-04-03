@@ -52,12 +52,10 @@ def main() -> None:
 
     cmd = ["bash", str(scripts[name]), *extra_args]
     if use_sudo:
-        cmd = ["sudo"] + cmd
+        cmd = ["sudo", *cmd]
     returncode = subprocess.run(cmd, check=False).returncode
     if returncode != 0 and not use_sudo:
-        print(
-            f"\nHint: if this failed due to permissions, try: rio_hw.setup {name} --sudo"
-        )
+        print(f"\nHint: if this failed due to permissions, try: rio_hw.setup {name} --sudo")
     sys.exit(returncode)
 
 
