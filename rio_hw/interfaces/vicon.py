@@ -47,7 +47,7 @@ class Vicon(Node):
             **{f"{k}_pose": np.zeros((6,), dtype=self.dtype) for k in self.vicon_object_names},
             "timestamp": time.now(),
         }
-        self.worker = self.req
+        self.worker = None
         self.run = self.pub
         super().__post_init__()
 
