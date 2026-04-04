@@ -82,7 +82,7 @@ def teleop_leadfollow(args, teleop, teleop2, arm_lead, arm2_lead, gripper_lead, 
         # Main loop
         freq = args.freq
         dt = 1.0 / freq
-        command_latency = dt / 2
+        command_latency = dt / 2 if args.command_latency is None else args.command_latency
         t_start = time.now()
         it = 0
         while True:
@@ -226,8 +226,9 @@ class Args(StationCfg):
     teleop2_cfg: GelloCfg = field(default_factory=lambda: GelloCfg())
     teleop2_cfg_yaml: str | None = None
 
+    command_latency: float | None = 0.01
     arm_latency: float = 0.0
-    gripper_latency: float = 0.1
+    gripper_latency: float = 0.0
 
     mw: str = "Shm"  # middleware
     mp_method: str | None = "fork"

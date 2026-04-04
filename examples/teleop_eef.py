@@ -193,7 +193,7 @@ def teleop_eef(args, teleop, arm, arm2, gripper, gripper2):
         # Main loop
         freq = args.freq
         dt = 1.0 / freq
-        command_latency = dt / 2
+        command_latency = dt / 2 if args.command_latency is None else args.command_latency
         t_start = time.now()
         it = 0
         while True:
@@ -278,8 +278,9 @@ class Args(StationCfg):
     teleop: str = "Spacemouse"  # Gamepad, Keyboard, Spacemouse
     teleop_cfg: TeleopCfg = field(default_factory=lambda: Args.TeleopCfg())
 
+    command_latency: float | None = 0.01
     arm_latency: float = 0.0
-    gripper_latency: float = 0.1
+    gripper_latency: float = 0.0
 
     mw: str = "Shm"  # middleware
     mp_method: str | None = "fork"
