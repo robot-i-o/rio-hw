@@ -96,6 +96,14 @@ robots = [
     "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk==1.17.0",  # xarm
 ]
+# --- all dependencies ---
+all = [
+    "rio_hw[serializers]",
+    "rio_hw[cameras]",
+    "rio_hw[interfaces]",
+    "rio_hw[middlewares]",
+    "rio_hw[robots]",
+]
 
 [project.scripts]
 "rio_hw.setup" = "rio_hw._scripts.setup:main"
