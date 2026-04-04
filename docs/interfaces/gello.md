@@ -50,6 +50,6 @@ cat /sys/bus/usb-serial/devices/ttyUSB0/latency_timer
 # Set Return Delay Time (Control Table Register 9) from 250 µs to 0 µs.
 ```
 
-## FAQ:
+## FAQ
 
 - GELLOs are kinematically scaled by $\alpha=0.5$, so try to match scaling when positioning for a bimanual setup.
