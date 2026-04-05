@@ -76,7 +76,7 @@ interfaces = [
     "spnav @ https://github.com/cheng-chi/spnav/archive/c1c938ebe3cc542db4685e0d13850ff1abfdb943.tar.gz", # spacemouse
     "sshkeyboard",
     "pyvicon-datastream",  # vicon
-    "televuer @ https://github.com/unitreerobotics/televuer/archive/b6ed5db2f08eabd0c49135fd565bc7f5a0c93573.tar.gz",  # vuer
+    "vuer[all]==0.0.60",
     # "xrobotoolkit_sdk",  # xrobotoolkit
 ]
 middlewares = [
