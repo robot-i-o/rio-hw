@@ -75,11 +75,16 @@ Vuer: [`docs/interfaces/vuer.md`](docs/interfaces/vuer.md)
 XRoboToolkit: [`docs/interfaces/x_robotoolkit.md`](docs/interfaces/x_robotoolkit.md)
 
 ### Robots
-Arms:
-  - [`docs/robots/franka.md`](docs/robots/franka.md)
-  - [`docs/robots/kinova.md`](docs/robots/kinova.md)
-  - [`docs/robots/ur.md`](docs/robots/ur.md)
-  - [`docs/robots/xarm.md`](docs/robots/xarm.md)
+
+#### Arms
+
+Franka: [`docs/robots/franka.md`](docs/robots/franka.md)
+
+Kinova: [`docs/robots/kinova.md`](docs/robots/kinova.md)
+
+UR: [`docs/robots/ur.md`](docs/robots/ur.md)
+
+XArm [`docs/robots/xarm.md`](docs/robots/xarm.md)
 
 # Usage
 
