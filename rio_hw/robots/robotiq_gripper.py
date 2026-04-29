@@ -7,43 +7,33 @@ import numpy as np
 from .. import time
 from ..interpolators import PoseTrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..request import Request
 
 try:
-    from .utils.robotiq_driver import RobotiqDriver
-    from .utils.robotiq_tcp_driver import RobotiqTcpDriver
+    import pyrobotiqgripper as rq
 except ImportError as e:
     if TYPE_CHECKING:
         raise e
     else:
-        RobotiqDriver = None
-        RobotiqTcpDriver = None
+        rq = None
 
 
-GripperInfo = {
+RobotInfo = {
     "robotiq_2f85": {"range": (0, 85)},
     "robotiq_2f140": {"range": (0, 140)},
 }
 
 
-class GripperController(Enum):
-    TASK_POS = "task_pos"
+class RobotController(Enum):
+    TASK_POS = auto()
 
 
 class RequestType(Enum):
     MOVEG = auto()
 
 
-class MODBUSMode(Enum):
-    SERIAL = auto()
-    TCPIP = auto()
-
-
-class RobotiqGripper:
-    """
-    Robot agnostic interface for Robotiq Gripper, controlled via serial port.
-    """
-
+class RobotiqGripper(Node):
     __api__ = [
         "get_state",
         "get_all_state",
@@ -54,53 +44,66 @@ class RobotiqGripper:
 
     def __init__(
         self,
-        port: str = "auto",
-        model: str = "robotiq_2f140",
-        control_mode: str = "bits",
-        calibrate: bool = False,
+        robot_port: str = "/dev/ttyUSB0",
+        robot_model: str = "robotiq_2f85",
         robot_controller: str = "task_pos",
-        max_gripper_speed: float | None = 3.0,
-        modbus_mode: str = "serial",
+        device_id: int = 9,
+        connection_type: str = "RTU",
+        calibrate_speed: bool = False,
+        max_gripper_speed: float | None = 10.0,
+        home_to_open: bool = True,
         dtype=np.float64,
         *,
         freq: int = 50,
         max_buffer_size: int | None = None,
-        max_queue_size: int = 1,
+        max_queue_size: int = 128,
         **kwargs,
     ):
         """
         Args:
-            port (str, optional): Serial port for the gripper. Defaults to "auto".
-            model (str, optional): Gripper model. Defaults to "robotiq_2f140".
-            control_mode (str, optional): Control mode for the gripper. Defaults to "bits".
-            calibrate (bool, optional): Whether to calibrate the gripper. Defaults to False.
-            robot_controller (str, optional): Robot controller type. Defaults to "task_pos".
-            dtype (_type_, optional): Data type for the gripper. Defaults to np.float64.
-            freq (int, optional): Defaults to 30.
-            max_buffer_size (int | None, optional): Defaults to None.
-            max_queue_size (int, optional): Defaults to 1024.
+            robot_port: serial path for RTU (e.g. "/dev/ttyUSB0"), or
+                "host:port" for RTU_VIA_TCP (e.g. "192.168.1.100:54321").
+            device_id: Modbus device ID, usually 9.
+            connection_type: "RTU" for serial or "RTU_VIA_TCP" for TCP.
+            robot_model: gripper model, e.g. "robotiq_2f85" or "robotiq_2f140".
+            gripper_range: (close_mm, open_mm) override, or None to use
+                RobotInfo defaults for the model.
+            home_to_open: if True, open the gripper on startup.
+            robot_controller: controller type, currently only "task_pos".
+            max_gripper_speed: max speed for trajectory interpolation, or
+                None to disable interpolation.
+            dtype: numpy dtype for position values.
+            freq: control loop frequency in Hz.
+            max_buffer_size: ring buffer size, defaults to freq * 10.
+            max_queue_size: request queue size.
         """
+        assert connection_type in ("RTU", "RTU_VIA_TCP")
+        assert robot_port != "auto", "AUTO_DETECTION not supported"
+        robot_controller = RobotController[robot_controller.upper()]
+        gripper_range = RobotInfo[robot_model]["range"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
-        self.port = port
-        self.model = model
-        self.mm_range = GripperInfo[model]["range"]
-        self.control_mode = control_mode
-        self.calibrate = calibrate
-        self.robot_controller = GripperController(robot_controller)
+        self.robot_port = robot_port
+        self.device_id = device_id
+        self.connection_type = connection_type
+        self.robot_model = robot_model
+        self.calibrate_speed = calibrate_speed
+        self.gripper_range = gripper_range
+        self.home_to_open = home_to_open
+        self.robot_controller = robot_controller
         self.max_gripper_speed = max_gripper_speed
-        self.modbus_mode = MODBUSMode[modbus_mode.upper()]
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
 
     def __post_init__(self):
         example_request_params = {
-            GripperController.TASK_POS: (RequestType.MOVEG, {"target_pose": np.zeros((1,), dtype=self.dtype)}),
-        }[self.robot_controller][1]
-        example_request_params = {
-            **example_request_params,
-            "target_time": time.now(),
+            "target_pos": np.zeros((1,), dtype=self.dtype),
         }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEG, ("target_pos",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         example_robot_state = {
             "gripper_position": 0.0,
@@ -119,28 +122,39 @@ class RobotiqGripper:
         super().__post_init__()
 
     def pubreq(self):
-        try:
-            if self.modbus_mode == MODBUSMode.SERIAL:
-                gripper = RobotiqDriver(
-                    port=self.port,
-                    model=self.model,
-                    control_mode=self.control_mode,
-                    calibrate=self.calibrate,
-                    freq=self.freq,
-                )
-            elif self.modbus_mode == MODBUSMode.TCPIP:
-                gripper = RobotiqTcpDriver(
-                    robot_ip=self.port,
-                    freq=self.freq,
-                )
-            else:
-                raise ValueError(self.modbus_mode)
-            gripper.start()
+        if self.connection_type == "RTU":
+            gripper = rq.RobotiqGripper(
+                com_port=self.robot_port,
+                device_id=self.device_id,
+                connection_type="RTU",
+            )
+        elif self.connection_type == "RTU_VIA_TCP":
+            host, port = self.robot_port.rsplit(":", 1)
+            gripper = rq.RobotiqGripper(
+                device_id=self.device_id,
+                connection_type="RTU_VIA_TCP",
+                tcp_host=host,
+                tcp_port=int(port),
+            )
+        else:
+            raise ValueError(f"Unknown connection_type: {self.connection_type}")
 
-            if self.robot_controller == GripperController.TASK_POS:
-                curr_pos = gripper.state()["gripper_position"]
+        gripper.connect()
+        gripper.activate()
+        if self.calibrate_speed:
+            # gripper.calibrate_bit()  # not needed since calibrate_speed() will also perform bit calibration
+            gripper.calibrate_speed()
+        else:
+            gripper.calibrate_bit()
+        gripper.calibrate_mm(closemm=self.gripper_range[0], openmm=self.gripper_range[1])
+        # gripper.start()  # not needed since activate(start=True)
+        if self.home_to_open:
+            gripper.open(wait=True)
+
+        try:
+            if self.robot_controller == RobotController.TASK_POS:
+                curr_pos = 1 - gripper.position() / 255
                 if self.max_gripper_speed is not None:
-                    # pose interpolation
                     curr_time = time.now()
                     last_waypoint_time = curr_time
                     pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
@@ -150,27 +164,34 @@ class RobotiqGripper:
             else:
                 raise ValueError(self.robot_controller)
 
-            # Main loop
             dt = 1.0 / self.freq
             rate = time.Rate(self.freq)
             self.req_ready_event.set()
             not_pub_ready = True
             while not self.exit_event.is_set():
                 t_now = time.now()
-                # send command to robot
-                if self.robot_controller == GripperController.TASK_POS:
+                if self.robot_controller == RobotController.TASK_POS:
                     if pose_interp is not None:
                         pos_command = pose_interp(t_now)[0]
                     else:
                         pos_command = np.copy(target_pos)
-                    gripper.moveG(pos_command)
+                    pos_command = max(0.0, min(1.0, float(pos_command)))
+                    if self.calibrate_speed:
+                        gripper.realTimeMove(
+                            int(255 - pos_command * 255),
+                            minimalMotion=0,
+                            continuousGrip=False,
+                            autoLock=False,
+                            objectDetectionDuration=0.0,
+                        )
+                    else:
+                        gripper.move(int(255 - pos_command * 255), speed=255, force=255, wait=False)
                 else:
                     raise ValueError(self.robot_controller)
 
-                # get state from robot
-                robot_state = gripper.state()
+                pos = 1 - gripper.position(refreshStatus=False) / 255
+                robot_state = {"gripper_position": pos}
 
-                # Store current state in ring buffer
                 data = {
                     **robot_state,
                     "timestamp": time.now(),
@@ -180,7 +201,6 @@ class RobotiqGripper:
                     self.pub_ready_event.set()
                     not_pub_ready = False
 
-                # Fetch requests from queue
                 try:
                     reqs = self.request_queue.get_all()
                     if isinstance(reqs, dict):
@@ -190,7 +210,7 @@ class RobotiqGripper:
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEG:
-                        target_pos = np.array(req.params["target_pose"], dtype=self.dtype)[0]
+                        target_pos = np.array(req.params["target_pos"], dtype=self.dtype)[0]
                         target_time = float(req.params["target_time"])
                         if pose_interp is not None:
                             curr_time = t_now + dt
@@ -210,6 +230,7 @@ class RobotiqGripper:
             pass
         finally:
             gripper.stop()
+            gripper.disconnect()
 
     def get_state(self, k=None, out=None):
         if k is None:
@@ -220,13 +241,13 @@ class RobotiqGripper:
     def get_all_state(self):
         return self.ring_buffer.get_all()
 
-    def moveG(self, target_pose, target_time):
-        target_pose = np.array(target_pose, dtype=self.dtype)
-        assert target_pose.shape == (1,)
+    def moveG(self, target_pos, target_time):
+        target_pos = np.array(target_pos, dtype=self.dtype)
+        assert target_pos.shape == (1,)
         assert target_time > time.now()
         req = {
             "type": RequestType.MOVEG.value,
-            "target_pose": target_pose,
+            "target_pos": target_pos,
             "target_time": target_time,
         }
         self.request_queue.put(req)
