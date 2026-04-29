@@ -152,15 +152,25 @@ class FrankaPandapy:
         actual_eef_twist = O_dP_EE
         target_eef_twist = O_dP_EE_d
 
+        joint_q = np.array(state.q.copy())
+        joint_qd = np.array(state.dq.copy())
+        joint_torque = np.array(state.tau_J.copy())
+
+        target_joint_q = np.array(state.q_d.copy())
+        target_joint_qd = np.array(state.dq_d.copy())
+        target_joint_torque = np.array(state.tau_J_d.copy())
+
         state = {
             "eef_pose": actual_eef_pose,
             "eef_twist": actual_eef_twist,
-            "joint_q": np.array(state.q.copy()),
-            "joint_qd": np.array(state.dq.copy()),
+            "joint_q": joint_q,
+            "joint_qd": joint_qd,
+            "joint_torque": joint_torque,
             "target_eef_pose": target_eef_pose,
             "target_eef_twist": target_eef_twist,
-            "target_joint_q": np.array(state.q_d.copy()),
-            "target_joint_qd": np.array(state.dq_d.copy()),
+            "target_joint_q": target_joint_q,
+            "target_joint_qd": target_joint_qd,
+            "target_joint_torque": target_joint_torque,
         }
         return state
 

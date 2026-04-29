@@ -138,13 +138,13 @@ class FrankaArm(Node):
         example_request_params = {
             "target_eef_pose": np.zeros((6,), dtype=self.dtype),
             "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_eef_speed": np.zeros((6,), dtype=self.dtype),
+            "target_eef_twist": np.zeros((6,), dtype=self.dtype),
             "target_joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
         }
         request_params_keys = {
             RobotController.TASK_POS: (RequestType.MOVEL, ("target_eef_pose",)),
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
-            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_eef_speed",)),
+            RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_eef_twist",)),
             RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_joint_qd",)),
             RobotController.TASK_IMPEDANCE: (RequestType.MOVEL, ("target_eef_pose",)),
         }[self.robot_controller][1]
@@ -153,13 +153,15 @@ class FrankaArm(Node):
 
         example_robot_state = {
             "eef_pose": np.zeros((6,), dtype=self.dtype),
-            "eef_speed": np.zeros((6,), dtype=self.dtype),
+            "eef_twist": np.zeros((6,), dtype=self.dtype),
             "joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
             "joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
+            "joint_torque": np.zeros((self.num_joints,), dtype=self.dtype),
             "target_eef_pose": np.zeros((6,), dtype=self.dtype),
-            "target_eef_speed": np.zeros((6,), dtype=self.dtype),
+            "target_eef_twist": np.zeros((6,), dtype=self.dtype),
             "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
             "target_joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_joint_torque": np.zeros((self.num_joints,), dtype=self.dtype),
         }
 
         self.example_request = {
