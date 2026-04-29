@@ -81,7 +81,7 @@ class Realsense(Node):
         enable_depth: bool = False,
         bgr: bool = False,
         advanced_mode_config: str | None = None,
-        timeout_ms: float = 1000.0,
+        timeout_ms: int = 1000,
         dtype=np.float32,
         *,
         freq: int = 30,
