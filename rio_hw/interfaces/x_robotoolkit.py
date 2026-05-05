@@ -69,6 +69,8 @@ class XRobotoolkit(Node):
                 "body_tracking": False,
                 "body_pos": np.zeros((24, 3), dtype=np.float32),
                 "body_quat": np.zeros((24, 4), dtype=np.float32),
+                "raw_body_pos": np.zeros((24, 3), dtype=np.float32),
+                "raw_body_quat": np.zeros((24, 4), dtype=np.float32),
             }
         else:
             body_data = {}
@@ -140,13 +142,17 @@ class XRobotoolkit(Node):
         headset_pos, headset_quat = self._convert_pose(headset_pose)
         headset_data = {"headset": True, "headset_pos": headset_pos, "headset_quat": headset_quat}
 
-        if self.enable_body_tracking:
-            if xrt.is_body_data_available():
-                body_joints_pose = xrt.get_body_joints_pose()
-                body_pos, body_quat = self._convert_pose(body_joints_pose)
-                body_data = {"body_tracking": True, "body_pos": body_pos, "body_quat": body_quat}
-            else:
-                body_data = self.body_data
+        if self.enable_body_tracking and xrt.is_body_data_available():
+            body_joints_pose = xrt.get_body_joints_pose()
+            raw_body_pos, raw_body_quat = body_joints_pose[:, :3], body_joints_pose[:, 3:]
+            body_pos, body_quat = self._convert_pose(body_joints_pose)
+            body_data = {
+                "body_tracking": True,
+                "body_pos": body_pos,
+                "body_quat": body_quat,
+                "raw_body_pos": raw_body_pos,
+                "raw_body_quat": raw_body_quat,
+            }
         else:
             body_data = {}
         full_body_data = {**left_controller_data, **right_controller_data, **headset_data, **body_data}
@@ -167,7 +173,7 @@ class XRobotoolkit(Node):
 
         # transformation from unity coordinate to right-hand coordinate system
         coordinate_transform = np.array([[0, 0, -1], [-1, 0, 0], [0, 1, 0]])
-        pos = coordinate_transform @ pos
+        pos = pos @ coordinate_transform.T
         # try to convert from unity coordinate frame
         if np.allclose(quat, 0):
             rot = st.Rotation.identity().as_matrix()

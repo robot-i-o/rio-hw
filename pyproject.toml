@@ -97,6 +97,7 @@ robots = [
     "dynamixel_sdk",  # leap_hand
     # "kortex_api @ https://artifactory.kinovaapps.com:443/artifactory/generic-public/kortex/API/2.8.0/kortex_api-2.8.0.post5-py3-none-any.whl",  # kinova
     "pyrobotiqgripper",  # robotiq gripper
+    # "unitree_interface @ https://github.com/amazon-far/unitree_sdk2/",  # unitree g1
     "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk==1.17.0",  # xarm
 ]
