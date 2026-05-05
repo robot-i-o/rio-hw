@@ -86,6 +86,10 @@ UR: [`docs/robots/ur.md`](docs/robots/ur.md)
 
 XArm [`docs/robots/xarm.md`](docs/robots/xarm.md)
 
+#### Humanoids
+
+Unitree G1: [`docs/robots/unitree_g1.md`](docs/robots/unitree_g1.md)
+
 # Usage
 
 A `Node` dynamically inherits from any given `Middleware` to handle automatically message passing, and factory functions produce `Server` and `Client` nodes. Each `Node` publishes data and handles requests, in separate loops or in the same loop.
