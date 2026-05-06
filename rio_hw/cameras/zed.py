@@ -9,6 +9,7 @@ from threadpoolctl import threadpool_limits
 
 from .. import time
 from ..middleware import ClientFactory, ServerFactory
+from ..node import Node
 from ..request import Request
 
 try:
@@ -41,7 +42,7 @@ class RequestType(Enum):
     SET_CAMERA_SETTINGS = auto()
 
 
-class Zed:
+class Zed(Node):
     __api__ = [
         "get_state",
         "get_all_state",
@@ -57,14 +58,16 @@ class Zed:
     def __init__(
         self,
         serial: int | str,
+        model: str,
         resolution: tuple[int, int] | None = (720, 1280),
+        resolution_depth: tuple[int, int] | None = None,
         enable_color: bool = True,
         enable_depth: bool = False,
         bgr: bool = False,
         image_side: str | None = "LEFT",
         concatenate_images: bool = False,
         depth_mode: str = "NEURAL",
-        depth_stabilization: bool = False,
+        depth_stabilization: int = 0,
         depth_minimum_distance: float = 0.1,
         image_flip: str = "OFF",
         dtype=np.float32,
@@ -74,6 +77,7 @@ class Zed:
         **kwargs,
     ):
         self.serial = serial
+        self.model = model
         self.resolution = resolution
         self.enable_color = enable_color
         self.enable_depth = enable_depth
@@ -223,26 +227,25 @@ class Zed:
                     if self.enable_color:
                         if self.concatenate_images:
                             cam.retrieve_image(sbs_img, sl.VIEW.SIDE_BY_SIDE, resolution=zed_resolution)
-                            sbs_data = sbs_img.get_data()[:, :, :3].copy()
-                            if not self.bgr:
-                                sbs_data = cv2.cvtColor(sbs_data, cv2.COLOR_BGR2RGB)
-                            camera_state["color"] = sbs_data
+                            color = sbs_img.get_data()
+                            code = cv2.COLOR_BGRA2BGR if self.bgr else cv2.COLOR_BGR2RGB
+                            color = cv2.cvtColor(color, code)
+                            camera_state["color"] = color
                         elif self.image_side is not None:
                             cam.retrieve_image(left_img, sl.VIEW[self.image_side.upper()], resolution=zed_resolution)
-                            left_data = left_img.get_data()[:, :, :3].copy()
-                            if not self.bgr:
-                                left_data = cv2.cvtColor(left_data, cv2.COLOR_BGR2RGB)
-                            camera_state["color"] = left_data
+                            color = left_img.get_data()
+                            code = cv2.COLOR_BGRA2BGR if self.bgr else cv2.COLOR_BGR2RGB
+                            color = cv2.cvtColor(color, code)
+                            camera_state["color"] = color
                         else:
                             cam.retrieve_image(left_img, sl.VIEW.LEFT, resolution=zed_resolution)
                             cam.retrieve_image(right_img, sl.VIEW.RIGHT, resolution=zed_resolution)
-                            left_data = left_img.get_data()[:, :, :3].copy()
-                            right_data = right_img.get_data()[:, :, :3].copy()
-                            if not self.bgr:
-                                left_data = cv2.cvtColor(left_data, cv2.COLOR_BGR2RGB)
-                                right_data = cv2.cvtColor(right_data, cv2.COLOR_BGR2RGB)
-                            camera_state["color_left"] = left_data
-                            camera_state["color_right"] = right_data
+                            color_left, color_right = left_img.get_data(), right_img.get_data()
+                            code = cv2.COLOR_BGRA2BGR if self.bgr else cv2.COLOR_BGR2RGB
+                            color_left = cv2.cvtColor(color_left, code)
+                            color_right = cv2.cvtColor(color_right, code)
+                            camera_state["color_left"] = color_left
+                            camera_state["color_right"] = color_right
 
                     # Retrieve depth map
                     if self.enable_depth:
