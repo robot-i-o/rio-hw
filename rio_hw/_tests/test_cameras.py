@@ -59,3 +59,4 @@ def test_get_frame(camera):
     assert "color" in data
     assert isinstance(data["color"], np.ndarray)
     assert data["color"].size > 0
+    assert np.any(data["color"] != 0)
