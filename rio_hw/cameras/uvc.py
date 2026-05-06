@@ -1,7 +1,6 @@
-import platform
 import queue
 from enum import Enum, auto
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -12,29 +11,56 @@ from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
 from ..request import Request
 
-MAX_OPENCV_INDEX = 60
+try:
+    import cv2_enumerate_cameras
+except ImportError as e:
+    if TYPE_CHECKING:
+        raise e
+    else:
+        cv2_enumerate_cameras = None  # type: ignore
 
 
 def get_connected_cameras():
     serials, models = [], []
-    targets = (
-        [str(p) for p in sorted(Path("/dev").glob("video*"), key=lambda p: p.name)]
-        if platform.system() == "Linux"
-        else list(range(MAX_OPENCV_INDEX))
-    )
-    for target in targets:
-        cap = cv2.VideoCapture(target)
-        if cap.isOpened():
-            try:
-                model = cap.getBackendName()
-            except Exception:
-                model = "unknown"
-            serials.append(str(target))
-            models.append(model or "unknown")
-            cap.release()
+    for camera_info in cv2_enumerate_cameras.enumerate_cameras():
+        serial = str(camera_info.index)
+        model = camera_info.name
+        serials.append(serial)
+        models.append(model)
     if len(serials) > 0:
+        # sort serials and models by serials
         serials, models = zip(*sorted(zip(serials, models, strict=True)), strict=True)
     return serials, models
+
+
+COMMON_RESOLUTIONS = [
+    (240, 320),
+    (480, 640),
+    (600, 800),
+    (768, 1024),
+    (720, 1280),
+    (960, 1280),
+    (1080, 1920),
+    (1440, 2560),
+    (2160, 3840),
+]
+
+
+def _probe_on_capture(capture, warmup_s=0.1):
+    """Probe available resolutions on an already-open capture."""
+    found = []
+    for h, w in COMMON_RESOLUTIONS:
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+        warmup_start = time.now()
+        while time.now() - warmup_start < warmup_s:
+            capture.read()
+        ret, frame = capture.read()
+        if ret:
+            actual_h, actual_w = frame.shape[:2]
+            if (actual_h, actual_w) not in found:
+                found.append((actual_h, actual_w))
+    return sorted(found)
 
 
 class RequestType(Enum):
@@ -59,48 +85,49 @@ class Uvc(Node):
         self,
         serial: str | int,
         model: str,
-        resolution: tuple[int, int] | None = (480, 640),
+        resolution: tuple[int, int] = (480, 640),
         resolution_depth: tuple[int, int] | None = None,
         enable_color: bool = True,
         enable_depth: bool = False,
-        fourcc: str | None = None,
         bgr: bool = False,
-        warmup_s: float = 2.0,
+        warmup_s: float = 0.5,
+        backend: str = "CAP_ANY",
+        fourcc: str | None = None,
         dtype=np.float32,
         *,
         freq: int = 30,
         max_buffer_size: int | None = 30,
         **kwargs,
     ):
-        assert not enable_depth, "Depth is not supported"
+        assert enable_color and not enable_depth, "Depth is not supported"
         self.serial = serial
         self.model = model
         self.resolution = resolution
         self.enable_color = enable_color
         self.enable_depth = enable_depth
-        self.fourcc = fourcc
         self.bgr = bgr
         self.warmup_s = warmup_s
+        self.backend = backend
+        self.fourcc = fourcc
         self.dtype = dtype
-
-        self.capture = None
-        self.backend = cv2.CAP_ANY
-
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
-        h, w = self.resolution if self.resolution else (480, 640)
-
         example_camera_state = {}
         example_camera_state["camera_receive_timestamp"] = 0.0
         example_camera_state["camera_capture_timestamp"] = 0.0
         if self.enable_color:
+            h, w = self.resolution
             example_camera_state["color"] = np.zeros((h, w, 3), dtype=np.uint8)
 
-        self.example_request = {
-            "type": RequestType.SET_PROPERTY.value,
+        example_request_params = {
             "property_id": 0,
             "value": 0.0,
+        }
+
+        self.example_request = {
+            "type": next(iter(RequestType)).value,
+            **example_request_params,
         }
         self.example_data = {
             **example_camera_state,
@@ -110,30 +137,37 @@ class Uvc(Node):
         self.run = self.pubreq
         super().__post_init__()
 
-    @property
-    def is_connected(self) -> bool:
-        return isinstance(self.capture, cv2.VideoCapture) and self.capture.isOpened()
-
     def pubreq(self):
         threadpool_limits(1)
         cv2.setNumThreads(1)
 
-        self.capture = cv2.VideoCapture(int(self.serial), self.backend)
-        if not self.capture.isOpened():
+        backend = getattr(cv2, self.backend)
+        capture = cv2.VideoCapture(int(self.serial), backend)
+        if not capture.isOpened():
             raise ConnectionError(f"Failed to open camera {self.serial}")
-        self._configure_settings()
+        self._configure_settings(capture)
 
-        # Warmup: read frames for warmup_s seconds
+        # Read frames for warmup_s seconds
         warmup_start = time.now()
         while time.now() - warmup_start < self.warmup_s:
-            self.capture.read()
+            capture.read()
+
+        # Verify resolution after warmup
+        ret, frame = capture.read()
+        if not ret:
+            raise RuntimeError(f"Failed to read frame from camera {self.serial}")
+        actual_h, actual_w = frame.shape[:2]
+        h, w = self.resolution
+        if actual_w != w or actual_h != h:
+            available = _probe_on_capture(capture, self.warmup_s)
+            raise RuntimeError(f"Failed to set resolution=({h}, {w}), got ({actual_h}, {actual_w}). Available: {available}")
 
         try:
             rate = time.Rate(self.freq)
             self.req_ready_event.set()
             not_pub_ready = True
             while not self.exit_event.is_set():
-                ret, frame = self.capture.read()
+                ret, frame = capture.read()
 
                 if not ret:
                     print(f"Warning: failed to read frame from camera {self.serial}")
@@ -147,6 +181,7 @@ class Uvc(Node):
                 if self.enable_color:
                     camera_state["color"] = frame if self.bgr else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+                # Store current state in ring buffer
                 data = {
                     **camera_state,
                     "timestamp": receive_time,
@@ -168,41 +203,28 @@ class Uvc(Node):
                     if req.type == RequestType.SET_PROPERTY:
                         prop_id = int(req.params["property_id"])
                         value = float(req.params["value"])
-                        self.capture.set(prop_id, value)
+                        capture.set(prop_id, value)
                     else:
                         raise ValueError(req.type)
                 rate.precise_sleep()
+        except KeyboardInterrupt:
+            pass
         finally:
-            if self.capture is not None:
-                self.capture.release()
-                self.capture = None
+            capture.release()
 
-    def _configure_settings(self):
-        """Configure camera settings after connection."""
-        if not self.is_connected:
-            raise RuntimeError("Camera not connected")
-
+    def _configure_settings(self, capture):
         if self.fourcc is not None:
             fourcc_code = cv2.VideoWriter_fourcc(*self.fourcc)
-            success = self.capture.set(cv2.CAP_PROP_FOURCC, fourcc_code)
+            success = capture.set(cv2.CAP_PROP_FOURCC, fourcc_code)
             if not success:
                 print(f"Warning: failed to set FOURCC to {self.fourcc}")
 
-        if self.resolution is not None:
-            h, w = self.resolution
-            width_ok = self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-            height_ok = self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+        h, w = self.resolution
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
 
-            actual_w = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-            actual_h = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-            if not width_ok or actual_w != w:
-                raise RuntimeError(f"Failed to set width={w} (actual={actual_w})")
-            if not height_ok or actual_h != h:
-                raise RuntimeError(f"Failed to set height={h} (actual={actual_h})")
-
-        fps_ok = self.capture.set(cv2.CAP_PROP_FPS, float(self.freq))
-        actual_fps = self.capture.get(cv2.CAP_PROP_FPS)
+        fps_ok = capture.set(cv2.CAP_PROP_FPS, float(self.freq))
+        actual_fps = capture.get(cv2.CAP_PROP_FPS)
         if not fps_ok and abs(self.freq - actual_fps) > 0.1:
             print(f"Warning: failed to set FPS={self.freq} (actual={actual_fps})")
 
