@@ -29,6 +29,8 @@ uv sync --all-extras
 
 ### Cameras
 
+> Run `python -c "from rio_hw.cameras.{CAMERA} import get_connected_cameras; print(get_connected_cameras())"` to get camera serials and models.
+
 Realsense: [`docs/cameras/realsense.md`](docs/cameras/realsense.md)
 ```bash
 sudo ./scripts/setup/realsense.sh
