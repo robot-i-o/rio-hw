@@ -206,8 +206,8 @@ class RclpyServer(th.Thread, Node):
 
         self._spin_thread = th.Thread(target=self._spin_loop, daemon=True)
 
-    def _put(self, data):
-        self.ring_buffer._put(data)
+    def _put(self, data, **kwargs):
+        self.ring_buffer._put(data, **kwargs)
         for field, value in data.items():
             msg_class = self._state_msg_classes[field]
             expected_dtype = RosStdMsgs.TO_NUMPY.get(msg_class)

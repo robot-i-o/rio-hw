@@ -95,8 +95,8 @@ class ZmqServer(th.Thread, Node):
         # Always create request thread (needed for ALL API calls)
         self.request_thread = th.Thread(target=self._request_loop, daemon=True)
 
-    def _put(self, data):
-        self.ring_buffer._put(data)
+    def _put(self, data, **kwargs):
+        self.ring_buffer._put(data, **kwargs)
         frames = self.ring_buffer.get_last_k(k=self.frames_per_publish)
         publish_data = self._serializer.pack(frames)
         self.pub_socket.send_multipart([self.b_topic, publish_data])

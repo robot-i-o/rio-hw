@@ -113,8 +113,8 @@ class LcmServer(th.Thread, Node):
         self._lc.subscribe(f"{self.topic}/api_request", self._on_api_request)
         self._lcm_thread = th.Thread(target=self._request_loop, daemon=True)
 
-    def _put(self, data):
-        self.ring_buffer._put(data)
+    def _put(self, data, **kwargs):
+        self.ring_buffer._put(data, **kwargs)
         self._lc.publish(f"{self.topic}/state", self._serializer.pack(data))
 
     def _on_api_request(self, channel, data):
