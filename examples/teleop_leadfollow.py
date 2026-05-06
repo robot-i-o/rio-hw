@@ -152,23 +152,17 @@ def main(args):
     if hasattr(args, "arm"):
         arm_cfg = asdict(args.arm_cfg)
         arm_cfg["robot_controller"] = "joint_pos"
-        start_joints = args.teleop_cfg.start_joints
-        arm_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
+        if args.teleop == "Gello":
+            start_joints = args.teleop_cfg.start_joints
+            arm_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
         kwargs["arm_cfg"] = arm_cfg
     if hasattr(args, "arm2"):
         arm2_cfg = asdict(args.arm2_cfg)
         arm2_cfg["robot_controller"] = "joint_pos"
-        start_joints = args.teleop2_cfg.start_joints if args.teleop2 else args.teleop_cfg.start_joints
-        arm2_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
+        if args.teleop2 == "Gello":
+            start_joints = args.teleop2_cfg.start_joints if args.teleop2 else args.teleop_cfg.start_joints
+            arm2_cfg["joints_init"] = start_joints[:-1]  # Exclude gripper position
         kwargs["arm2_cfg"] = arm2_cfg
-    if hasattr(args, "arm_lead") and args.arm_lead:
-        arm_lead_cfg = asdict(args.arm_lead_cfg)
-        arm_lead_cfg["robot_controller"] = "joint_pos"
-        kwargs["arm_lead_cfg"] = arm_lead_cfg
-    if hasattr(args, "arm2_lead") and args.arm2_lead:
-        arm2_lead_cfg = asdict(args.arm2_lead_cfg)
-        arm2_lead_cfg["robot_controller"] = "joint_pos"
-        kwargs["arm2_lead_cfg"] = arm2_lead_cfg
 
     servers, clients = RealEnv.make_nodes(args, **kwargs)
 
@@ -176,7 +170,7 @@ def main(args):
 
     with ServerManager(args.mw, list(servers.values())):
         with (
-            clients["teleop"]() as teleop,
+            clients["teleop"]() if clients["teleop"] else nullcontext() as teleop,
             clients["teleop2"]() if clients["teleop2"] else nullcontext() as teleop2,
             clients["arm_lead"]() if clients.get("arm_lead") else nullcontext() as arm_lead,
             clients["arm2_lead"]() if clients.get("arm2_lead") else nullcontext() as arm2_lead,
@@ -218,11 +212,11 @@ class GelloCfg:
 
 @dataclass
 class Args(StationCfg):
-    teleop: str = "Gello"
+    teleop: str | None = None  # Gello
     teleop_cfg: GelloCfg = field(default_factory=lambda: GelloCfg())
     teleop_cfg_yaml: str | None = None
 
-    teleop2: str | None = None
+    teleop2: str | None = None  # Gello
     teleop2_cfg: GelloCfg = field(default_factory=lambda: GelloCfg())
     teleop2_cfg_yaml: str | None = None
 
