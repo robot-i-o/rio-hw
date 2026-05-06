@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from .. import time
+from ..filters import LowPassFilter
 from ..interpolators import PoseTrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
@@ -19,9 +20,14 @@ except ImportError as e:
         rq = None
 
 
+class RobotModel(Enum):
+    ROBOTIQ_2F85 = auto()
+    ROBOTIQ_2F140 = auto()
+
+
 RobotInfo = {
-    "robotiq_2f85": {"range": (0, 85)},
-    "robotiq_2f140": {"range": (0, 140)},
+    RobotModel.ROBOTIQ_2F85: {"range": (0, 85)},
+    RobotModel.ROBOTIQ_2F140: {"range": (0, 140)},
 }
 
 
@@ -52,6 +58,7 @@ class RobotiqGripper(Node):
         calibrate_speed: bool = False,
         max_gripper_speed: float | None = 10.0,
         home_to_open: bool = True,
+        gripper_lowpass_alpha: float = 0.6,
         dtype=np.float64,
         *,
         freq: int = 50,
@@ -79,18 +86,20 @@ class RobotiqGripper(Node):
         """
         assert connection_type in ("RTU", "RTU_VIA_TCP")
         assert robot_port != "auto", "AUTO_DETECTION not supported"
+        robot_model = RobotModel[robot_model.upper()]
         robot_controller = RobotController[robot_controller.upper()]
         gripper_range = RobotInfo[robot_model]["range"]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
         self.robot_port = robot_port
+        self.robot_model = robot_model
+        self.robot_controller = robot_controller
         self.device_id = device_id
         self.connection_type = connection_type
-        self.robot_model = robot_model
         self.calibrate_speed = calibrate_speed
         self.gripper_range = gripper_range
         self.home_to_open = home_to_open
-        self.robot_controller = robot_controller
+        self.gripper_lowpass_alpha = gripper_lowpass_alpha
         self.max_gripper_speed = max_gripper_speed
         self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, max_queue_size=max_queue_size, **kwargs)
@@ -155,12 +164,16 @@ class RobotiqGripper(Node):
             if self.robot_controller == RobotController.TASK_POS:
                 curr_pos = 1 - gripper.position() / 255
                 if self.max_gripper_speed is not None:
+                    # joint interpolation
                     curr_time = time.now()
                     last_waypoint_time = curr_time
                     pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+                    # joint filtering/smoothing
+                    lowpass_filter = LowPassFilter(alpha=self.gripper_lowpass_alpha, initial=curr_pos)
                 else:
                     target_pos = np.copy(curr_pos)
                     pose_interp = None
+                    lowpass_filter = None
             else:
                 raise ValueError(self.robot_controller)
 
@@ -173,6 +186,7 @@ class RobotiqGripper(Node):
                 if self.robot_controller == RobotController.TASK_POS:
                     if pose_interp is not None:
                         pos_command = pose_interp(t_now)[0]
+                        pos_command = lowpass_filter(pos_command)
                     else:
                         pos_command = np.copy(target_pos)
                     pos_command = max(0.0, min(1.0, float(pos_command)))
