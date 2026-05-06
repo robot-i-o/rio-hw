@@ -86,7 +86,7 @@ middlewares = [
     # "rclpy",  # (ros2)
     "roslibpy",  # (rosbridge w/o local ros2 dependency)
     "atomics",  # shm, shmf
-    "eclipse-zenoh==1.7.2",  # zenoh
+    "eclipse-zenoh",  # zenoh
     "zerorpc",
     "pyzmq",  # zmq
 ]
@@ -98,8 +98,8 @@ robots = [
     # "kortex_api @ https://artifactory.kinovaapps.com:443/artifactory/generic-public/kortex/API/2.8.0/kortex_api-2.8.0.post5-py3-none-any.whl",  # kinova
     "pyrobotiqgripper",  # robotiq gripper
     # "unitree_interface @ https://github.com/amazon-far/unitree_sdk2/",  # unitree g1
-    "ur-rtde==1.5.6; sys_platform != 'darwin'",  # ur
-    "xarm-python-sdk==1.17.0",  # xarm
+    "ur-rtde; sys_platform != 'darwin'",  # ur
+    "xarm-python-sdk",  # xarm
 ]
 # --- all dependencies ---
 all = [
