@@ -87,10 +87,13 @@ class XArmSocket:
         return u64
 
     @staticmethod
-    def bytes_to_state(data):
+    def bytes_to_state(data, num_joints):
         state = {}
         for key, (start, end) in XArmSocket.P30000.items():
-            state[key] = XArmSocket.bytes_to_fp32_list(data[start - 1 : end])
+            value = XArmSocket.bytes_to_fp32_list(data[start - 1 : end])
+            if "joint" in key:
+                value = value[:num_joints]
+            state[key] = value
         return state
 
 

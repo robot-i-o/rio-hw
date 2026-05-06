@@ -19,6 +19,11 @@ except ImportError as e:
         WavesharePiperDriver = None  # type: ignore
 
 
+class RobotController(Enum):
+    TASK_POS = auto()
+    GUIDE = auto()
+
+
 class RequestType(Enum):
     MOVEG = auto()
 
@@ -36,11 +41,12 @@ class WavesharePiperGripper(Node):
 
     def __init__(
         self,
-        port: str = "/dev/ttyUSB0",
+        robot_port: str = "/dev/ttyUSB0",
+        robot_controller: str = "task_pos",
         baudrate: int = 2_000_000,
         max_angle: int = 76_101,
         default_effort: int = 2000,
-        max_gripper_speed: float | None = 3.0,
+        max_gripper_speed: float | None = 10.0,
         dtype=np.float32,
         *,
         freq: int = 100,
@@ -48,9 +54,11 @@ class WavesharePiperGripper(Node):
         max_queue_size: int = 128,
         **kwargs,
     ):
+        robot_controller = RobotController[robot_controller.upper()]
         if max_buffer_size is None:
             max_buffer_size = int(freq * 10)
-        self.port = port
+        self.robot_port = robot_port
+        self.robot_controller = robot_controller
         self.baudrate = baudrate
         self.max_angle = max_angle
         self.default_effort = default_effort
@@ -82,7 +90,7 @@ class WavesharePiperGripper(Node):
 
     def pubreq(self):
         gripper = WavesharePiperDriver(
-            port=self.port,
+            port=self.robot_port,
             baudrate=self.baudrate,
             max_angle=self.max_angle,
             default_effort=self.default_effort,
@@ -90,14 +98,19 @@ class WavesharePiperGripper(Node):
         gripper.start()
 
         try:
-            curr_pos = gripper.state()["gripper_position"]
-            if self.max_gripper_speed is not None:
-                curr_time = time.now()
-                last_waypoint_time = curr_time
-                pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+            if self.robot_controller == RobotController.TASK_POS:
+                curr_pos = gripper.state()["gripper_position"]
+                if self.max_gripper_speed is not None:
+                    curr_time = time.now()
+                    last_waypoint_time = curr_time
+                    pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[[curr_pos, 0, 0, 0, 0, 0]])
+                else:
+                    target_pos = np.copy(curr_pos)
+                    pose_interp = None
+            elif self.robot_controller == RobotController.GUIDE:
+                pass
             else:
-                target_pos = np.copy(curr_pos)
-                pose_interp = None
+                raise ValueError(self.robot_controller)
 
             # Main loop
             dt = 1.0 / self.freq
@@ -106,18 +119,22 @@ class WavesharePiperGripper(Node):
             not_pub_ready = True
             while not self.exit_event.is_set():
                 t_now = time.now()
-
-                # Send command
-                if self.max_gripper_speed is not None:
-                    pos_command = pose_interp(t_now)[0]
+                # send command to robot
+                if self.robot_controller == RobotController.TASK_POS:
+                    if self.max_gripper_speed is not None:
+                        pos_command = pose_interp(t_now)[0]
+                    else:
+                        pos_command = np.copy(target_pos)
+                    gripper.moveG(pos_command)
+                elif self.robot_controller == RobotController.GUIDE:
+                    pass
                 else:
-                    pos_command = np.copy(target_pos)
-                gripper.moveG(pos_command)
+                    raise ValueError(self.robot_controller)
 
-                # Read state
+                # get state from robot
                 robot_state = gripper.state()
 
-                # Store in ring buffer
+                # Store current state in ring buffer
                 data = {
                     **robot_state,
                     "timestamp": time.now(),
@@ -127,7 +144,7 @@ class WavesharePiperGripper(Node):
                     self.pub_ready_event.set()
                     not_pub_ready = False
 
-                # Process requests
+                # Fetch requests from queue
                 try:
                     reqs = self.request_queue.get_all()
                     if isinstance(reqs, dict):

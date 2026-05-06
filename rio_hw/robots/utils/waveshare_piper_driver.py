@@ -66,9 +66,18 @@ def _build_serial_frame_std(id_11bit: int, data_bytes: list[int]) -> bytearray:
 
     See: https://files.waveshare.com/wiki/USB-CAN-A/Demo/USB%20(Serial%20port)%20to%20CAN%20protocol%20defines.pdf
     """
-    dlc = len(data_bytes)
+    dlc = len(data_bytes)  # data length code
     if not 0 <= dlc <= 8:
         raise ValueError(f"DLC must be 0-8, got {dlc}")
+    # WAVESHARE PROTOCOL:
+    # 1st byte: packet header
+    # 2nd byte: TYPE, std frame, data frame, length=dlc
+    #   bits 0-3 are DLC (0-8)
+    #   bit4: frame format (0 = data frame, 1 = remote frame)
+    #   bit5: frame type (0 = standard ID uses 2 bytes, 1 = extended ID uses 4 bytes)
+    # 3rd byte: FRAME ID for CAN, little endian
+    # 4th bytes: Frame data (0-8 bytes)
+    # 5th bytes: END CODE
     frame = bytearray()
     frame.append(0xAA)  # header
     frame.append(0xC0 | dlc)  # standard + data frame
@@ -88,7 +97,7 @@ def _read_one_frame(s: serial.Serial) -> tuple[int, list[int]] | None:
     while True:
         b = s.read(1)
         if not b:
-            return None
+            return None  # timeout
         if b[0] == 0xAA:
             break
 
@@ -106,28 +115,29 @@ def _read_one_frame(s: serial.Serial) -> tuple[int, list[int]] | None:
         return None
 
     if is_ext:
+        # extended frame (4-byte ID)
         id_bytes = s.read(4)
         if len(id_bytes) < 4:
             return None
         can_id = id_bytes[0] | (id_bytes[1] << 8) | (id_bytes[2] << 16) | (id_bytes[3] << 24)
     else:
+        # standard frame (2-byte ID, little-endian)
         id_bytes = s.read(2)
         if len(id_bytes) < 2:
             return None
         can_id = id_bytes[0] | (id_bytes[1] << 8)
 
+    # read Data length control amount of bytes
     data = s.read(dlc)
     if len(data) < dlc:
         return None
 
+    # tail has 0x55
     tail = s.read(1)
     if not tail or tail[0] != 0x55:
-        return None
+        return None  # lost sync; discard this frame
 
     return can_id, list(data)
-
-
-# -- Driver class --------------------------------------------------------------
 
 
 class WavesharePiperDriver:
@@ -152,6 +162,7 @@ class WavesharePiperDriver:
         self.max_angle = max_angle
         self.default_effort = default_effort
         self._s: serial.Serial | None = None
+        self._last_state: dict = {"gripper_position": 0.0}
 
     def start(self):
         """Open serial port and run initialization sequence."""
@@ -177,24 +188,28 @@ class WavesharePiperDriver:
             self._s.close()
             self._s = None
 
-    def state(self) -> dict:
-        """Read gripper feedback.
+    def state(self, timeout: float = 0.1) -> dict:
+        """Read gripper feedback, draining all buffered CAN frames.
+
+        Args:
+            timeout: max seconds to spend draining frames.
 
         Returns:
             Dict with ``gripper_position`` normalized to [0, 1] (0=closed, 1=open).
         """
         assert self._s is not None
-        frame = _read_one_frame(self._s)
-        if frame is None:
-            return {"gripper_position": 0.0}
-
-        can_id, data = frame
-        if can_id != GRIPPER_FB_ID or len(data) < 7:
-            return {"gripper_position": 0.0}
-
-        grippers_angle = _int32_from_be(data[0:4])
-        pos = max(0.0, min(1.0, grippers_angle / self.max_angle))
-        return {"gripper_position": pos}
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < timeout:
+            frame = _read_one_frame(self._s)
+            if frame is None:
+                break
+            can_id, data = frame
+            if can_id != GRIPPER_FB_ID or len(data) not in (7, 8):
+                continue
+            grippers_angle = _int32_from_be(data[0:4])
+            pos = max(0.0, min(1.0, grippers_angle / self.max_angle))
+            self._last_state = {"gripper_position": pos}
+        return self._last_state
 
     def moveG(self, target_pos: float):
         """Move gripper to target position.

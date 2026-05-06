@@ -46,6 +46,7 @@ class RobotController(Enum):
     TASK_VEL = auto()
     JOINT_VEL = auto()
     TASK_IMPEDANCE = auto()
+    GUIDE = auto()
 
 
 class RequestType(Enum):
@@ -165,12 +166,13 @@ class XarmArm(Node):
             RobotController.TASK_VEL: (RequestType.SPEEDL, ("target_eef_twist",)),
             RobotController.JOINT_VEL: (RequestType.SPEEDJ, ("target_joint_qd",)),
             RobotController.TASK_IMPEDANCE: (RequestType.MOVEL, ("target_eef_pose",)),
+            RobotController.GUIDE: (None, ()),
         }[self.robot_controller][1]
         example_request_params = {k: example_request_params[k] for k in request_params_keys}
         example_request_params["target_time"] = time.now()
 
         dummy_data = bytes(1000)  # dummy data, just needs to be larger than 784
-        example_robot_state = XArmSocket.bytes_to_state(dummy_data)
+        example_robot_state = XArmSocket.bytes_to_state(dummy_data, self.num_joints)
         example_robot_state = {k: np.array(v, dtype=self.dtype) for k, v in example_robot_state.items()}
 
         self.example_request = {
@@ -211,7 +213,7 @@ class XarmArm(Node):
                 data = buffer[:size]
                 buffer = buffer[size:]
 
-                robot_state = XArmSocket.bytes_to_state(data)
+                robot_state = XArmSocket.bytes_to_state(data, self.num_joints)
                 robot_state = {k: np.array(v, dtype=self.dtype) for k, v in robot_state.items()}
                 robot_state["eef_pose"][:3] *= 0.001  # convert mm to m
                 robot_state["eef_twist"][:3] *= 0.001  # convert mm/s to m/s
@@ -318,6 +320,8 @@ class XarmArm(Node):
                 arm.set_mode(1)  # 1: servo motion mode
             elif self.robot_controller == RobotController.JOINT_VEL:
                 arm.set_mode(4)  # 4: velocity control mode
+            elif self.robot_controller == RobotController.GUIDE:
+                arm.set_mode(2)  # 2: joint teaching mode
             else:
                 raise ValueError(self.robot_controller)
             arm.set_state(0)
@@ -353,6 +357,8 @@ class XarmArm(Node):
                     lowpass_filter = None
             elif self.robot_controller == RobotController.JOINT_VEL:
                 target_joint_qd = np.zeros(self.num_joints, dtype=self.dtype)
+            elif self.robot_controller == RobotController.GUIDE:
+                pass
             else:
                 raise ValueError(self.robot_controller)
 
@@ -380,6 +386,8 @@ class XarmArm(Node):
                 elif self.robot_controller == RobotController.JOINT_VEL:
                     joint_command = np.copy(target_joint_qd)
                     code = arm.vc_set_joint_velocity(joint_command.tolist(), is_radian=True, is_sync=True, duration=0)
+                elif self.robot_controller == RobotController.GUIDE:
+                    code = 0
                 else:
                     raise ValueError(self.robot_controller)
                 if not (code == 0 and arm.error_code == 0 and arm.connected):

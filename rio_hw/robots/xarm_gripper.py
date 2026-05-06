@@ -19,16 +19,16 @@ except ImportError as e:
         XArmGripperDriver = None  # type: ignore
 
 
-class RobotController(Enum):
-    TASK_POS = auto()
-
-
 class RobotModel(Enum):
     LITE6 = auto()
     G1 = auto()
     G2 = auto()
     ROBOTIQ_2F85 = auto()
     ROBOTIQ_2F140 = auto()
+
+
+class RobotController(Enum):
+    TASK_POS = auto()
 
 
 class RequestType(Enum):
@@ -49,7 +49,7 @@ class XarmGripper(Node):
         robot_ip: str = "192.168.1.111",
         robot_model: str = "g1",
         robot_controller: str = "task_pos",
-        max_gripper_speed: float | None = 3.0,
+        max_gripper_speed: float | None = 10.0,
         home_to_open: bool = True,
         dtype=np.float32,
         *,

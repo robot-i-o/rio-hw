@@ -19,5 +19,5 @@ sudo dmesg | tail -n 20
 # Add user to dialout group
 sudo usermod -aG dialout $USER
 newgrp dialout
-sudo chmod -R 777 /dev/serial/by-id/
+sudo chmod -R 777 /dev/serial/by-path/
 ```
