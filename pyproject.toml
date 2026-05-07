@@ -100,6 +100,7 @@ robots = [
     # "unitree_interface @ https://github.com/amazon-far/unitree_sdk2/",  # unitree g1
     "ur-rtde; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk",  # xarm
+    "pyAgxArm @ https://github.com/agilexrobotics/pyAgxArm.git", # piper
     "pysoarm @ https://github.com/PAOK-2001/pysoarm.git", # so arm
 ]
 # --- all dependencies ---
