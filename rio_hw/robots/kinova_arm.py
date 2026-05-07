@@ -2,7 +2,6 @@
 
 import os
 import queue
-import time as builtin_time
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -10,7 +9,7 @@ import numpy as np
 
 from .. import time
 from ..filters import LowPassFilter
-from ..interpolators import TrajectoryInterpolator
+from ..interpolators import PoseTrajectoryInterpolator, TrajectoryInterpolator
 from ..middleware import ClientFactory, ServerFactory
 from ..node import Node
 from ..request import Request
@@ -51,6 +50,7 @@ RobotInfo = {
 
 class RobotController(Enum):
     JOINT_POS = auto()
+    TASK_POS = auto()
 
 
 class RequestType(Enum):
@@ -72,8 +72,11 @@ class KinovaArm(Node):
         self,
         robot_ip: str = "192.168.1.10",
         robot_model: str = "gen3_7dof",
+        robot_controller: str = "joint_pos",
         username: str = "admin",
         password: str = "admin",
+        max_pos_speed: float = 0.25,  # m/s
+        max_rot_speed: float = 0.785,  # rad/s
         max_motor_speed: float = 3.1415,  # rad/s
         joints_init=None,
         joints_lowpass_alpha: float = 0.1,
@@ -88,8 +91,11 @@ class KinovaArm(Node):
         Args:
             robot_ip: IP address of the robot.
             robot_model: "gen3_6dof", "gen3_7dof", or "gen3_lite".
+            robot_controller: "joint_pos" or "task_pos".
             username: Kinova web interface username.
             password: Kinova web interface password.
+            max_pos_speed: Maximum linear speed in m/s.
+            max_rot_speed: Maximum rotational speed in rad/s.
             max_motor_speed: Maximum joint speed in rad/s.
             joints_init: Initial joint positions in radians.
             joints_lowpass_alpha: Low-pass filter alpha for joint smoothing.
@@ -99,39 +105,57 @@ class KinovaArm(Node):
             max_buffer_size: Ring buffer size.
         """
         assert 125 <= freq <= 500
+        assert 0 < max_pos_speed
+        assert 0 < max_rot_speed
         assert 0 < max_motor_speed
+
         robot_model_enum = RobotModel[robot_model.upper()]
+        robot_controller = RobotController[robot_controller.upper()]
         num_joints = RobotInfo[robot_model_enum]["num_joints"]
+
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
         if joints_init is not None:
             joints_init = np.array(joints_init, dtype=dtype)
             assert joints_init.shape == (num_joints,)
+
         self.robot_ip = robot_ip
         self.robot_model = robot_model_enum
+        self.robot_controller = robot_controller
         self.username = username
         self.password = password
         self.num_joints = num_joints
+        self.max_pos_speed = max_pos_speed
+        self.max_rot_speed = max_rot_speed
         self.max_motor_speed = max_motor_speed
         self.joints_init = joints_init
         self.joints_lowpass_alpha = joints_lowpass_alpha
         self.soft_real_time = soft_real_time
         self.dtype = dtype
-        self._base = None
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
+        example_request_params = {
+            "target_eef_pose": np.zeros((6,), dtype=self.dtype),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
+        }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_eef_pose",)),
+            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
+
+        self.example_request = {
+            "type": next(iter(RequestType)).value,
+            **example_request_params,
+        }
         self.example_data = {
             "joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
             "joint_qd": np.zeros((self.num_joints,), dtype=self.dtype),
-            "joint_torques": np.zeros((self.num_joints,), dtype=self.dtype),
-            "tcp_pose": np.zeros((6,), dtype=self.dtype),
+            "joint_torque": np.zeros((self.num_joints,), dtype=self.dtype),
+            "eef_pose": np.zeros((6,), dtype=self.dtype),
             "timestamp": time.now(),
-        }
-        self.example_request = {
-            "type": next(iter(RequestType)).value,
-            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
-            "target_time": time.now(),
         }
         self.worker = None
         self.run = self.pubreq
@@ -183,11 +207,29 @@ class KinovaArm(Node):
             dtype=self.dtype,
         )
 
-        # Set up interpolator and filter
+        # Set up interpolator and filter based on controller mode
         curr_time = time.now()
         last_waypoint_time = curr_time
-        joint_interp = TrajectoryInterpolator(times=[curr_time], values=[curr_joint_q])
-        lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+
+        if self.robot_controller == RobotController.JOINT_POS:
+            joint_interp = TrajectoryInterpolator(times=[curr_time], values=[curr_joint_q])
+            lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+        elif self.robot_controller == RobotController.TASK_POS:
+            curr_eef_pose = np.array(
+                [
+                    feedback.base.tool_pose_x,
+                    feedback.base.tool_pose_y,
+                    feedback.base.tool_pose_z,
+                    np.deg2rad(feedback.base.tool_pose_theta_x),
+                    np.deg2rad(feedback.base.tool_pose_theta_y),
+                    np.deg2rad(feedback.base.tool_pose_theta_z),
+                ],
+                dtype=self.dtype,
+            )
+            pose_interp = PoseTrajectoryInterpolator(times=[curr_time], poses=[curr_eef_pose])
+            lowpass_filter = LowPassFilter(alpha=self.joints_lowpass_alpha, initial=curr_joint_q)
+        else:
+            raise ValueError(self.robot_controller)
 
         try:
             dt = 1.0 / self.freq
@@ -197,9 +239,18 @@ class KinovaArm(Node):
             while not self.exit_event.is_set():
                 t_now = time.now()
 
-                # Interpolate + filter joint command
-                joint_command = joint_interp(t_now)
-                joint_command = lowpass_filter(joint_command)
+                # Send command to robot
+                if self.robot_controller == RobotController.JOINT_POS:
+                    joint_command = joint_interp(t_now)
+                    joint_command = lowpass_filter(joint_command)
+
+                elif self.robot_controller == RobotController.TASK_POS:
+                    pose_command = pose_interp(t_now)
+                    ik_result = self._eval_ik(base, pose_command)
+                    if ik_result is not None:
+                        joint_command = lowpass_filter(ik_result)
+                    else:
+                        joint_command = lowpass_filter.s
 
                 # Convert to degrees and send to robot
                 joint_command_deg = np.rad2deg(joint_command)
@@ -219,11 +270,11 @@ class KinovaArm(Node):
                     [np.deg2rad(feedback.actuators[i].velocity) for i in range(self.num_joints)],
                     dtype=self.dtype,
                 )
-                joint_torques = np.array(
+                joint_torque = np.array(
                     [feedback.actuators[i].torque for i in range(self.num_joints)],
                     dtype=self.dtype,
                 )
-                tcp_pose = np.array(
+                eef_pose = np.array(
                     [
                         feedback.base.tool_pose_x,
                         feedback.base.tool_pose_y,
@@ -234,14 +285,17 @@ class KinovaArm(Node):
                     ],
                     dtype=self.dtype,
                 )
+                robot_state = {
+                    "joint_q": joint_q,
+                    "joint_qd": joint_qd,
+                    "joint_torque": joint_torque,
+                    "eef_pose": eef_pose,
+                }
 
                 # Store current state in ring buffer
                 data = {
-                    "joint_q": joint_q,
-                    "joint_qd": joint_qd,
-                    "joint_torques": joint_torques,
-                    "tcp_pose": tcp_pose,
-                    "timestamp": builtin_time.time(),
+                    **robot_state,
+                    "timestamp": time.now(),
                 }
                 self.ring_buffer.put(data)
                 if not_pub_ready:
@@ -258,9 +312,11 @@ class KinovaArm(Node):
                 for r in reqs:
                     req = Request(RequestType(r.pop("type")), r)
                     if req.type == RequestType.MOVEJ:
-                        target_joint_q = np.array(req.params.get("target_joint_q"), dtype=self.dtype)
-                        target_time = float(req.params.get("target_time"))
+                        target_joint_q = np.array(req.params["target_joint_q"], dtype=self.dtype)
+                        target_time = float(req.params["target_time"])
                         curr_time = t_now + dt
+                        if target_time < curr_time:
+                            continue
                         joint_interp = joint_interp.schedule_waypoint(
                             value=target_joint_q,
                             time=target_time,
@@ -270,22 +326,23 @@ class KinovaArm(Node):
                         )
                         last_waypoint_time = target_time
                     elif req.type == RequestType.MOVEL:
-                        target_eef_pose = np.array(req.params.get("target_eef_pose"), dtype=self.dtype)
-                        target_time = float(req.params.get("target_time"))
-                        ik_result = self._eval_ik(base, target_eef_pose)
-                        if ik_result is not None:
-                            curr_time = t_now + dt
-                            joint_interp = joint_interp.schedule_waypoint(
-                                value=ik_result,
-                                time=target_time,
-                                max_speed=self.max_motor_speed,
-                                curr_time=curr_time,
-                                last_waypoint_time=last_waypoint_time,
-                            )
-                            last_waypoint_time = target_time
+                        target_eef_pose = np.array(req.params["target_eef_pose"], dtype=self.dtype)
+                        target_time = float(req.params["target_time"])
+                        curr_time = t_now + dt
+                        if target_time < curr_time:
+                            continue
+                        pose_interp = pose_interp.schedule_waypoint(
+                            pose=target_eef_pose,
+                            time=target_time,
+                            max_pos_speed=self.max_pos_speed,
+                            max_rot_speed=self.max_rot_speed,
+                            curr_time=curr_time,
+                            last_waypoint_time=last_waypoint_time,
+                        )
+                        last_waypoint_time = target_time
                     else:
                         raise ValueError(req.type)
-                rate.sleep()
+                rate.precise_sleep()
         except KeyboardInterrupt:
             pass
         finally:
