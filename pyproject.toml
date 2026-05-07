@@ -96,7 +96,7 @@ robots = [
     "pylibfranka; sys_platform != 'darwin'",  # franka
     "dynamixel_sdk",  # leap_hand
     # "kortex_api @ https://artifactory.kinovaapps.com:443/artifactory/generic-public/kortex/API/2.8.0/kortex_api-2.8.0.post5-py3-none-any.whl",  # kinova
-    "pyAgxArm @ https://github.com/agilexrobotics/pyAgxArm.git", # piper
+    "pyAgxArm @ https://github.com/agilexrobotics/pyAgxArm/archive/57a95a88f86767f2f38f23fcf5f258a996507c91.tar.gz", # piper
     "pyrobotiqgripper",  # robotiq gripper
     "pysoarm @ https://github.com/PAOK-2001/pysoarm.git", # so arm
     # "unitree_interface @ https://github.com/amazon-far/unitree_sdk2/",  # unitree g1
