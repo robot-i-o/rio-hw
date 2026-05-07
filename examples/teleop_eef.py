@@ -40,17 +40,17 @@ class Interface:
         gp_b = gp.is_button_pressed(3)
 
         delta_eef_pose = gp_motion
-        gripper_pose = None
+        gripper_pos = None
         if gp_x:
             if t_sample - t_last_mode_change > 1.0:  # 1 second delay between mode changes
                 teleop_mode = (teleop_mode.value + 1) % len(TeleopMode)
                 teleop_mode = TeleopMode(teleop_mode)
                 t_last_mode_change = t_sample
         elif gp_a:
-            gripper_pose = 1.0  # open
+            gripper_pos = 1.0  # open
         elif gp_b:
-            gripper_pose = 0.0  # close
-        return delta_eef_pose, gripper_pose, t_last_mode_change, teleop_mode
+            gripper_pos = 0.0  # close
+        return delta_eef_pose, gripper_pos, t_last_mode_change, teleop_mode
 
     @staticmethod
     def poll_keyboard(kb, t_sample, t_last_mode_change, teleop_mode):
