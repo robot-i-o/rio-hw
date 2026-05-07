@@ -3,6 +3,7 @@ from .franka_arm import FrankaArmClient, FrankaArmServer
 from .franka_gripper import FrankaGripperClient, FrankaGripperServer
 from .kinova_arm import KinovaArmClient, KinovaArmServer
 from .robotiq_gripper import RobotiqGripperClient, RobotiqGripperServer
+from .so_arm import SoArmClient, SoArmServer
 from .unitree_g1 import UnitreeG1Client, UnitreeG1Server
 from .ur_arm import UrArmClient, UrArmServer
 from .waveshare_piper_gripper import WavesharePiperGripperClient, WavesharePiperGripperServer
@@ -16,6 +17,7 @@ __all__ = [
     "FrankaGripper",
     "KinovaArm",
     "RobotiqGripper",
+    "SoArm",
     "UnitreeG1",
     "UrArm",
     "WavesharePiperGripper",
