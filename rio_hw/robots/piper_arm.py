@@ -1,10 +1,9 @@
-import os  # noqa: I001
+import os
 import queue
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 import numpy as np
-from loguru import logger
 from scipy.spatial.transform import Rotation
 
 from .. import time
@@ -40,15 +39,6 @@ RobotInfo = {
     RobotModel.NERO: {"num_joints": 7},
 }
 
-# Map enum name → SDK robot string (e.g. PIPER_H → "piper_h")
-_MODEL_TO_SDK = {
-    m: m.name.lower()
-    .replace("_", "-")
-    .replace("piper-h", "piper_h")
-    .replace("piper-l", "piper_l")
-    .replace("piper-x", "piper_x")
-    for m in RobotModel
-}
 _MODEL_TO_SDK = {
     RobotModel.PIPER: "piper",
     RobotModel.PIPER_H: "piper_h",
@@ -146,15 +136,15 @@ class PiperArm(Node):
 
     def __post_init__(self):
         example_request_params = {
-            RobotController.JOINT_POS: {
-                "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
-                "target_time": time.now(),
-            },
-            RobotController.TASK_POS: {
-                "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
-                "target_time": time.now(),
-            },
-        }[self.robot_controller]
+            "target_eef_pose": np.zeros((6,), dtype=self.dtype),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
+        }
+        request_params_keys = {
+            RobotController.TASK_POS: (RequestType.MOVEL, ("target_eef_pose",)),
+            RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
+        }[self.robot_controller][1]
+        example_request_params = {k: example_request_params[k] for k in request_params_keys}
+        example_request_params["target_time"] = time.now()
 
         self.example_request = {
             "type": next(iter(RequestType)).value,
@@ -163,7 +153,7 @@ class PiperArm(Node):
 
         example_data = {
             "joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
-            "tcp_pose": np.zeros((6,), dtype=self.dtype),
+            "eef_pose": np.zeros((6,), dtype=self.dtype),
             "timestamp": time.now(),
         }
         if self.with_gripper:
@@ -196,7 +186,6 @@ class PiperArm(Node):
 
         try:
             # Phase B: Wait for SDK data + enable
-            logger.info("Waiting for Piper arm SDK data...")
             while robot.get_joint_angles() is None:
                 time.sleep(0.02)
 
@@ -205,7 +194,6 @@ class PiperArm(Node):
 
             # Phase C: Move to initial pose if specified
             if self.joints_init is not None:
-                logger.info("Moving Piper arm to joints_init...")
                 robot.move_j(self.joints_init.tolist())
                 deadline = time.now() + _JOINTS_INIT_TIMEOUT
                 while time.now() < deadline:
@@ -216,7 +204,7 @@ class PiperArm(Node):
                             break
                     time.sleep(0.05)
                 else:
-                    logger.warning("joints_init timeout — continuing anyway")
+                    pass
 
             # Phase D: Build interpolator from current state
             curr_t = time.now()
@@ -264,11 +252,14 @@ class PiperArm(Node):
                 ja = robot.get_joint_angles()
                 fp = robot.get_flange_pose()
                 joint_q = np.array(ja.msg, dtype=self.dtype) if ja is not None else np.zeros(self.num_joints, dtype=self.dtype)
-                tcp_pose = np.array(fp.msg, dtype=self.dtype) if fp is not None else np.zeros(6, dtype=self.dtype)
+                eef_pose = np.array(fp.msg, dtype=self.dtype) if fp is not None else np.zeros(6, dtype=self.dtype)
+                robot_state = {
+                    "joint_q": joint_q,
+                    "eef_pose": eef_pose,
+                }
 
                 data = {
-                    "joint_q": joint_q,
-                    "tcp_pose": tcp_pose,
+                    **robot_state,
                     "timestamp": time.now(),
                 }
                 if self.with_gripper and end_effector is not None:
@@ -307,13 +298,13 @@ class PiperArm(Node):
                         last_waypoint_time = target_time
 
                     elif req.type == RequestType.MOVEL:
-                        target_tcp_pose = np.array(req.params["target_tcp_pose"], dtype=self.dtype)
+                        target_eef_pose = np.array(req.params["target_eef_pose"], dtype=self.dtype)
                         target_time = float(req.params["target_time"])
                         curr_time = t_now + dt
                         if target_time < curr_time:
                             continue
                         pose_interp = pose_interp.schedule_waypoint(
-                            pose=target_tcp_pose,
+                            pose=target_eef_pose,
                             time=target_time,
                             max_pos_speed=self.max_pos_speed,
                             max_rot_speed=self.max_rot_speed,
@@ -328,12 +319,12 @@ class PiperArm(Node):
                             meters = np.clip(normalized * self.gripper_max_range, 0.0, self.gripper_max_range)
                             end_effector.move_gripper(meters)
                         else:
-                            logger.warning("MOVE_GRIPPER requested but gripper not initialized")
+                            pass
 
                     else:
                         raise ValueError(f"Unknown request type: {req.type}")
 
-                rate.sleep()
+                rate.precise_sleep()
 
         except KeyboardInterrupt:
             pass
@@ -350,7 +341,8 @@ class PiperArm(Node):
     def get_state(self, k=None, out=None):
         if k is None:
             return self.ring_buffer.get(out=out)
-        return self.ring_buffer.get_last_k(k=k, out=out)
+        else:
+            return self.ring_buffer.get_last_k(k=k, out=out)
 
     def get_all_state(self):
         return self.ring_buffer.get_all()
@@ -368,15 +360,15 @@ class PiperArm(Node):
             }
         )
 
-    def moveL(self, target_tcp_pose, target_time):
+    def moveL(self, target_eef_pose, target_time):
         assert self.robot_controller == RobotController.TASK_POS, "moveL requires robot_controller='task_pos'"
-        target_tcp_pose = np.array(target_tcp_pose, dtype=self.dtype)
-        assert target_tcp_pose.shape == (6,)
+        target_eef_pose = np.array(target_eef_pose, dtype=self.dtype)
+        assert target_eef_pose.shape == (6,)
         assert target_time > time.now()
         self.request_queue.put(
             {
                 "type": RequestType.MOVEL.value,
-                "target_tcp_pose": target_tcp_pose,
+                "target_eef_pose": target_eef_pose,
                 "target_time": target_time,
             }
         )
@@ -393,12 +385,6 @@ class PiperArm(Node):
                 "gripper_position": gripper_position,
             }
         )
-
-    def speedJ(self, target_joint_qd, target_time):
-        raise NotImplementedError("speedJ not implemented for PiperArm")
-
-    def speedL(self, target_tcp_twist, target_time):
-        raise NotImplementedError("speedL not implemented for PiperArm")
 
 
 def PiperArmServer(mw, *args, **kwargs):
