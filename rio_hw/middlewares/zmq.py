@@ -22,7 +22,7 @@ class ZmqServer(th.Thread, Node):
         topic: str | None = None,
         transport: str = "tcp",
         *,
-        addr: str = "127.0.0.1:5555",
+        addr: str = "127.0.0.1:5000",
         freq: int = 100,
         max_buffer_size: int = 30,
         max_queue_size: int = 100,
@@ -35,7 +35,7 @@ class ZmqServer(th.Thread, Node):
         super().__init__(daemon=daemon)
         assert transport in ("ipc", "tcp")
         if transport == "tcp":
-            assert int(addr.rsplit(":", 1)[1]) % 2 == 1, "port must be odd (each node uses port and port+1)"
+            assert int(addr.rsplit(":", 1)[1]) % 2 == 0, "port must be even (each node uses port and port+1)"
         assert frames_per_publish > 0 and frames_per_publish <= max_buffer_size
         if topic is None:
             port = addr.split(":")[-1]
@@ -152,7 +152,7 @@ class ZmqClient(Node):
         topic: str | None = None,
         transport: str = "tcp",
         *,
-        addr: str = "127.0.0.1:5555",
+        addr: str = "127.0.0.1:5000",
         serializer: str = "msgpack",
         timeout: float = 5.0,
         verbose=True,
@@ -160,7 +160,7 @@ class ZmqClient(Node):
     ):
         assert transport in ("ipc", "tcp")
         if transport == "tcp":
-            assert int(addr.rsplit(":", 1)[1]) % 2 == 1, "port must be odd (each node uses port and port+1)"
+            assert int(addr.rsplit(":", 1)[1]) % 2 == 0, "port must be even (each node uses port and port+1)"
         if topic is None:
             port = addr.split(":")[-1]
             topic = f"{self.__nodename__}/{port}"

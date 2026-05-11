@@ -7,7 +7,7 @@ import pytest
 
 @dataclass
 class WorkloadConfig:
-    base_port: int = 5555
+    base_port: int = 5000
     payload_dtype: str = "float32"
     payload_bytes: int = 2048
     n_iters: int = 100
