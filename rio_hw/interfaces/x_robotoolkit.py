@@ -143,7 +143,7 @@ class XRobotoolkit(Node):
         headset_data = {"headset": True, "headset_pos": headset_pos, "headset_quat": headset_quat}
 
         if self.enable_body_tracking and xrt.is_body_data_available():
-            body_joints_pose = xrt.get_body_joints_pose()
+            body_joints_pose = np.array(xrt.get_body_joints_pose(), dtype=np.float32)
             raw_body_pos, raw_body_quat = body_joints_pose[:, :3], body_joints_pose[:, 3:]
             body_pos, body_quat = self._convert_pose(body_joints_pose)
             body_data = {
@@ -168,8 +168,8 @@ class XRobotoolkit(Node):
         return self.ring_buffer.get_all()
 
     def _convert_pose(self, pose: np.array):
-        pos = np.array(pose)[..., :3]
-        quat = np.array(pose)[..., 3:]
+        pos = np.array(pose, dtype=np.float32)[..., :3]
+        quat = np.array(pose, dtype=np.float32)[..., 3:]
 
         # transformation from unity coordinate to right-hand coordinate system
         coordinate_transform = np.array([[0, 0, -1], [-1, 0, 0], [0, 1, 0]])
