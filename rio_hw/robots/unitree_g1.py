@@ -71,6 +71,7 @@ class UnitreeG1(Node):
         motor_kd: tuple[float, ...] = DEFAULT_KD,
         kp_scale: float = 1.0,
         kd_scale: float = 1.0,
+        dtype=np.float32,
         *,
         freq: int = 500,
         max_buffer_size: int = 30,
@@ -83,10 +84,11 @@ class UnitreeG1(Node):
         self.robot_model = robot_model
         self.robot_controller = robot_controller
         self.num_joints = num_joints
-        self.motor_kp = np.array(motor_kp)
-        self.motor_kd = np.array(motor_kd)
+        self.motor_kp = np.array(motor_kp, dtype=dtype)
+        self.motor_kd = np.array(motor_kd, dtype=dtype)
         self.kp_scale = kp_scale
         self.kd_scale = kd_scale
+        self.dtype = dtype
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
@@ -94,7 +96,7 @@ class UnitreeG1(Node):
         print(f"G1 motor_kd: {self.motor_kd}")
 
         example_request_params = {
-            "target_joint_q": np.zeros((self.num_joints,), dtype=np.float32),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
         }
         request_params_keys = {
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
@@ -104,15 +106,15 @@ class UnitreeG1(Node):
 
         example_robot_state = {
             # Motor data
-            "joint_q": np.zeros(shape=(self.num_joints,), dtype=np.float32),
-            "joint_qd": np.zeros(shape=(self.num_joints,), dtype=np.float32),
-            "joint_torque": np.zeros(shape=(self.num_joints,), dtype=np.float32),
-            "joint_temperature": np.zeros(shape=(self.num_joints,), dtype=np.float32),
-            "joint_voltage": np.zeros(shape=(self.num_joints,), dtype=np.float32),
+            "joint_q": np.zeros(shape=(self.num_joints,), dtype=self.dtype),
+            "joint_qd": np.zeros(shape=(self.num_joints,), dtype=self.dtype),
+            "joint_torque": np.zeros(shape=(self.num_joints,), dtype=self.dtype),
+            "joint_temperature": np.zeros(shape=(self.num_joints,), dtype=self.dtype),
+            "joint_voltage": np.zeros(shape=(self.num_joints,), dtype=self.dtype),
             # IMU data
-            "imu_quat": np.zeros(shape=(4,), dtype=np.float32),
-            "imu_gyro": np.zeros(shape=(3,), dtype=np.float32),
-            "imu_accel": np.zeros(shape=(3,), dtype=np.float32),
+            "imu_quat": np.zeros(shape=(4,), dtype=self.dtype),
+            "imu_gyro": np.zeros(shape=(3,), dtype=self.dtype),
+            "imu_accel": np.zeros(shape=(3,), dtype=self.dtype),
         }
 
         self.example_request = {
@@ -152,14 +154,14 @@ class UnitreeG1(Node):
                 state = robot.read_low_state()
                 if state is not None:
                     robot_state = {
-                        "joint_q": np.array(state.motor.q),
-                        "joint_qd": np.array(state.motor.dq),
-                        "joint_torque": np.array(state.motor.tau_est),
-                        "joint_temperature": np.array(state.motor.temperature),
-                        "joint_voltage": np.array(state.motor.voltage),
-                        "imu_quat": np.array(state.imu.quat)[[1, 2, 3, 0]],  # (w, x, y, z) -> (x, y, z, w)
-                        "imu_gyro": np.array(state.imu.omega),
-                        "imu_accel": np.array(state.imu.accel),
+                        "joint_q": np.array(state.motor.q, dtype=self.dtype),
+                        "joint_qd": np.array(state.motor.dq, dtype=self.dtype),
+                        "joint_torque": np.array(state.motor.tau_est, dtype=self.dtype),
+                        "joint_temperature": np.array(state.motor.temperature, dtype=self.dtype),
+                        "joint_voltage": np.array(state.motor.voltage, dtype=self.dtype),
+                        "imu_quat": np.array(state.imu.quat, dtype=self.dtype)[[1, 2, 3, 0]],  # (w, x, y, z) -> (x, y, z, w)
+                        "imu_gyro": np.array(state.imu.omega, dtype=self.dtype),
+                        "imu_accel": np.array(state.imu.accel, dtype=self.dtype),
                     }
 
                     # Store current state in ring buffer
@@ -201,7 +203,7 @@ class UnitreeG1(Node):
         return self.ring_buffer.get_all()
 
     def moveJ(self, target_joint_q, target_time):
-        target_joint_q = np.array(target_joint_q, dtype=np.float32)
+        target_joint_q = np.array(target_joint_q, dtype=self.dtype)
         assert target_joint_q.shape == (self.num_joints,)
         req = {
             "type": RequestType.MOVEJ.value,
