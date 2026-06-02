@@ -94,7 +94,7 @@ class UnitreeG1(Node):
         print(f"G1 motor_kd: {self.motor_kd}")
 
         example_request_params = {
-            "target_joint_q": np.zeros((self.num_joints,), dtype=self.dtype),
+            "target_joint_q": np.zeros((self.num_joints,), dtype=np.float32),
         }
         request_params_keys = {
             RobotController.JOINT_POS: (RequestType.MOVEJ, ("target_joint_q",)),
