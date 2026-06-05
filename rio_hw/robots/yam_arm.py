@@ -30,7 +30,6 @@ class RequestType(Enum):
 
 
 class YamArm(Node):
-    integrated_gripper = True
     __api__ = [
         "get_state",
         "get_all_state",
