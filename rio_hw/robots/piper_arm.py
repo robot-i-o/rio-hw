@@ -56,7 +56,7 @@ class RobotController(Enum):
 class RequestType(Enum):
     MOVEJ = auto()
     MOVEL = auto()
-    MOVE_GRIPPER = auto()
+    MOVEG = auto()
 
 
 _JOINTS_INIT_TIMEOUT = 10.0  # seconds
@@ -69,7 +69,7 @@ class PiperArm(Node):
         "get_all_state",
         "moveL",
         "moveJ",
-        "move_gripper",
+        "moveG",
     ]
     __pub__ = True
     __req__ = True
@@ -313,9 +313,9 @@ class PiperArm(Node):
                         )
                         last_waypoint_time = target_time
 
-                    elif req.type == RequestType.MOVE_GRIPPER:
+                    elif req.type == RequestType.MOVEG:
                         if end_effector is not None:
-                            normalized = float(req.params["gripper_position"])
+                            normalized = float(req.params["target_pos"][0])
                             meters = np.clip(normalized * self.gripper_max_range, 0.0, self.gripper_max_range)
                             end_effector.move_gripper(meters)
                         else:
@@ -373,16 +373,18 @@ class PiperArm(Node):
             }
         )
 
-    def move_gripper(self, gripper_position: float):
-        """Move gripper. gripper_position: normalized [0=closed, 1=open]."""
+    def moveG(self, target_pos, target_time):
+        """Move gripper. target_pos: normalized [0=closed, 1=open], shape (1,)."""
         if not self.with_gripper:
             raise RuntimeError("Gripper not initialized; set with_gripper=True")
-        gripper_position = float(gripper_position)
-        assert 0.0 <= gripper_position <= 1.0
+        target_pos = np.array(target_pos, dtype=self.dtype)
+        assert target_pos.shape == (1,)
+        assert target_time > time.now()
         self.request_queue.put(
             {
-                "type": RequestType.MOVE_GRIPPER.value,
-                "gripper_position": gripper_position,
+                "type": RequestType.MOVEG.value,
+                "target_pos": target_pos,
+                "target_time": target_time,
             }
         )
 
