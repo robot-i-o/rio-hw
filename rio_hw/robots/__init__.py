@@ -11,6 +11,7 @@ from .waveshare_piper_gripper import WavesharePiperGripperClient, WavesharePiper
 from .wsg_gripper import WsgGripperClient, WsgGripperServer
 from .xarm_arm import XarmArmClient, XarmArmServer
 from .xarm_gripper import XarmGripperClient, XarmGripperServer
+from .yam_arm import YamArmClient, YamArmServer
 
 __all__ = [
     "AgGripper",
@@ -26,4 +27,5 @@ __all__ = [
     "WsgGripper",
     "XarmArm",
     "XarmGripper",
+    "YamArm",
 ]

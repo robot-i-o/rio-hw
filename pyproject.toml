@@ -102,6 +102,7 @@ robots = [
     # "unitree_interface @ https://github.com/amazon-far/unitree_sdk2/",  # unitree g1
     "ur-rtde; sys_platform != 'darwin'",  # ur
     "xarm-python-sdk",  # xarm
+    "i2rt @ https://github.com/i2rt-robotics/i2rt.git",  # yam
 ]
 # --- all dependencies ---
 all = [

@@ -37,7 +37,7 @@ class RequestType(Enum):
     MOVEJ = auto()
     SPEEDL = auto()
     SPEEDJ = auto()
-    MOVE_GRIPPER = auto()
+    MOVEG = auto()
 
 
 class SoArm(Node):
@@ -48,7 +48,7 @@ class SoArm(Node):
         "moveJ",
         "speedL",
         "speedJ",
-        "move_gripper",
+        "moveG",
     ]
     __pub__ = True
     __req__ = True
@@ -72,7 +72,6 @@ class SoArm(Node):
         joints_lowpass_alpha: float = 0.1,
         soft_real_time: bool = False,
         motors_enabled: bool = True,
-        integrated_gripper: bool = True,
         use_waypoint_interpolation: bool = False,
         dtype=np.float32,
         *,
@@ -92,8 +91,6 @@ class SoArm(Node):
                 raise ValueError(
                     f"robot_controller={robot_controller.name!r} requires a URDF for kinematics; pass urdf_path=<path>"
                 )
-
-        self.integrated_gripper = integrated_gripper
 
         if max_buffer_size is None:
             max_buffer_size = int(freq * 5)
@@ -142,10 +139,9 @@ class SoArm(Node):
     def __post_init__(self):
         example_request_params = {
             "target_tcp_pose": np.zeros((6,), dtype=self.dtype),
-            "target_joint_q": np.zeros((NUM_JOINTS + 1,), dtype=self.dtype),
+            "target_joint_q": np.zeros((NUM_JOINTS,), dtype=self.dtype),
             "target_tcp_twist": np.zeros((6,), dtype=self.dtype),
-            "target_joint_qd": np.zeros((NUM_JOINTS + 1,), dtype=self.dtype),
-            "gripper_position": np.float32(0.0),
+            "target_joint_qd": np.zeros((NUM_JOINTS,), dtype=self.dtype),
         }
         request_params_keys = {
             RobotController.TASK_POS: (RequestType.MOVEL, ("target_tcp_pose",)),
@@ -220,6 +216,9 @@ class SoArm(Node):
                 arm.moveJ(self.joints_init.tolist(), speed=self.joints_init_speed)
                 time.sleep(0.5)
 
+            # Gripper rides its own channel; commanded via moveG (see RequestType.MOVEG).
+            gripper_target = float(arm.get_gripper_position())
+
             if self.robot_controller == RobotController.TASK_POS:
                 curr_pose = arm.get_end_effector_pose()
                 curr_pose = np.array(curr_pose, dtype=self.dtype)
@@ -230,16 +229,11 @@ class SoArm(Node):
 
             elif self.robot_controller == RobotController.JOINT_POS:
                 curr_joint_q = arm.get_joint_positions()
-                if self.integrated_gripper:
-                    curr_gripper_pos = arm.get_gripper_position()
-                    curr_joint_q = curr_joint_q.tolist()
-                    curr_joint_q.append(curr_gripper_pos)
-                    curr_joint_q = np.array(curr_joint_q, dtype=self.dtype)
                 if curr_joint_q is None:
                     raise RuntimeError("Failed to get current joint positions from SO-ARM")
 
                 curr_joint_q = np.array(curr_joint_q, dtype=self.dtype)
-                joint_command = np.concatenate([curr_joint_q.copy(), np.array([0.0], dtype=self.dtype)])
+                joint_command = curr_joint_q.copy()
 
                 if self.use_waypoint_interpolation:
                     curr_t = time.now()
@@ -308,10 +302,8 @@ class SoArm(Node):
                     elif req.type == RequestType.SPEEDJ:
                         raise NotImplementedError("SPEEDJ not yet implemented for SO-ARM")
 
-                    elif req.type == RequestType.MOVE_GRIPPER:
-                        gripper_pos = float(req.params.get("gripper_position"))
-                        gripper_speed = float(req.params.get("speed", 1000.0))
-                        arm.move_gripper(gripper_pos, speed=gripper_speed)
+                    elif req.type == RequestType.MOVEG:
+                        gripper_target = float(req.params["target_pos"][0])
 
                     else:
                         raise ValueError(f"Unknown request type: {req.type}")
@@ -319,18 +311,14 @@ class SoArm(Node):
                 # Send command to robot
                 if self.robot_controller == RobotController.TASK_POS:
                     pose_command = pose_interp(t_now)
-                    pose_cmd = pose_command.tolist()[:NUM_JOINTS]
-                    gripper_cmd = pose_command.tolist()[NUM_JOINTS]
-                    arm.moveL(position=pose_cmd, gripper=gripper_cmd, speed=self.joints_init_speed)
+                    arm.moveL(position=pose_command.tolist(), gripper=gripper_target, speed=self.joints_init_speed)
 
                 elif self.robot_controller == RobotController.JOINT_POS:
                     if self.use_waypoint_interpolation:
                         joint_command = joint_interp(t_now)
                         joint_command = lowpass_filter(joint_command)
 
-                    cmd_q = joint_command.tolist()[:NUM_JOINTS]
-                    gripper_cmd = joint_command.tolist()[NUM_JOINTS]
-                    arm.moveJ(positions=cmd_q, gripper=gripper_cmd)
+                    arm.moveJ(positions=joint_command.tolist(), gripper=gripper_target)
                 else:
                     raise ValueError(self.robot_controller)
 
@@ -401,14 +389,15 @@ class SoArm(Node):
         }
         self.request_queue.put(req)
 
-    def move_gripper(self, gripper_position, speed=1000.0):
-        """Move gripper to target position (0-1)."""
-        gripper_position = float(gripper_position)
-        assert 0.0 <= gripper_position <= 1.0
+    def moveG(self, target_pos, target_time):
+        """Move gripper. target_pos: normalized [0=closed, 1=open], shape (1,)."""
+        target_pos = np.array(target_pos, dtype=self.dtype)
+        assert target_pos.shape == (1,)
+        assert target_time > time.now()
         req = {
-            "type": RequestType.MOVE_GRIPPER.value,
-            "gripper_position": gripper_position,
-            "speed": speed,
+            "type": RequestType.MOVEG.value,
+            "target_pos": target_pos,
+            "target_time": target_time,
         }
         self.request_queue.put(req)
 
