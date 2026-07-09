@@ -90,6 +90,9 @@ middlewares = [
     "zerorpc",
     "pyzmq",  # zmq
 ]
+sensors = [
+    "pynetft",  # ati ft
+]
 robots = [
     # "panda_py; sys_platform != 'darwin'",  # franka
     # "polymetis; sys_platform != 'darwin'",  # franka
@@ -110,6 +113,7 @@ all = [
     "rio_hw[cameras]",
     "rio_hw[interfaces]",
     "rio_hw[middlewares]",
+    "rio_hw[sensors]",
     "rio_hw[robots]",
 ]
 
