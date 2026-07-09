@@ -23,11 +23,13 @@ except ImportError as e:
 class RobotModel(Enum):
     ROBOTIQ_2F85 = auto()
     ROBOTIQ_2F140 = auto()
+    ROBOTIQ_HAND_E = auto()
 
 
 RobotInfo = {
     RobotModel.ROBOTIQ_2F85: {"range": (0, 85)},
     RobotModel.ROBOTIQ_2F140: {"range": (0, 140)},
+    RobotModel.ROBOTIQ_HAND_E: {"range": (0, 50)},
 }
 
 
@@ -72,7 +74,8 @@ class RobotiqGripper(Node):
                 "host:port" for RTU_VIA_TCP (e.g. "192.168.1.100:54321").
             device_id: Modbus device ID, usually 9.
             connection_type: "RTU" for serial or "RTU_VIA_TCP" for TCP.
-            robot_model: gripper model, e.g. "robotiq_2f85" or "robotiq_2f140".
+            robot_model: gripper model, e.g. "robotiq_2f85", "robotiq_2f140",
+                or "robotiq_hand_e".
             gripper_range: (close_mm, open_mm) override, or None to use
                 RobotInfo defaults for the model.
             home_to_open: if True, open the gripper on startup.
