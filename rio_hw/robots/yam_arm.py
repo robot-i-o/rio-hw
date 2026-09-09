@@ -45,6 +45,7 @@ class YamArm(Node):
         gripper_type: str = "linear_4310",
         zero_gravity_mode: bool = False,
         dtype=np.float32,
+        enable_auto_recovery: bool = True,
         *,
         freq: int = 50,
         max_buffer_size: int | None = None,
@@ -57,6 +58,7 @@ class YamArm(Node):
         self.gripper_type = gripper_type.upper()
         self.zero_gravity_mode = zero_gravity_mode
         self.dtype = dtype
+        self.enable_auto_recovery = enable_auto_recovery
         super().__init__(freq=freq, max_buffer_size=max_buffer_size, **kwargs)
 
     def __post_init__(self):
@@ -75,10 +77,14 @@ class YamArm(Node):
         super().__post_init__()
 
     def pubreq(self):
+        # Without this, one transient CAN error kills i2rt's control loop thread and the arm
+        # goes limp: i2rt stopped recovering by default, and a dropped arm mid-episode is worse
+        # than a cleared-and-re-enabled motor. Stations can opt out per arm.
         arm = get_yam_robot(
             channel=self.channel,
             zero_gravity_mode=self.zero_gravity_mode,
             gripper_type=GripperType[self.gripper_type],
+            enable_auto_recovery=self.enable_auto_recovery,
         )
         time.sleep(STABILIZE_TIME)
 
