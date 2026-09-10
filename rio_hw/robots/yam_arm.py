@@ -26,6 +26,20 @@ NUM_JOINTS = 6
 STABILIZE_TIME = 3.0
 
 
+def _create_robot(**kwargs):
+    sig = inspect.signature(get_yam_robot)
+    
+    if "enable_auto_recovery" not in sig.parameters:
+        logger.warning("CAUTION: Current version of i2rt does not support 'enable_auto_recovery'. Reinstall the virtual environment to update.")
+    
+    supported = {
+        k: v
+        for k, v in kwargs.items()
+        if k in sig.parameters
+    }
+    return get_yam_robot(**supported)
+
+
 class RequestType(Enum):
     MOVEJ = auto()
     MOVEG = auto()
@@ -77,19 +91,6 @@ class YamArm(Node):
         self.worker = None
         self.run = self.pubreq
         super().__post_init__()
-
-    def _create_robot(**kwargs):
-        sig = inspect.signature(get_yam_robot)
-        
-        if "enable_auto_recovery" not in sig.parameters:
-            logger.warning("CAUTION: Current version of i2rt does not support 'enable_auto_recovery'. Reinstall the virtual environment to update.")
-        
-        supported = {
-            k: v
-            for k, v in kwargs.items()
-            if k in sig.parameters
-        }
-        return get_yam_robot(**supported)
 
     def pubreq(self):
         # Without this, one transient CAN error kills i2rt's control loop thread and the arm
