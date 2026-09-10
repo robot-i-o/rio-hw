@@ -2,6 +2,7 @@ import queue
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 import inspect
+from loguru import logger
 
 import numpy as np
 
@@ -79,6 +80,10 @@ class YamArm(Node):
 
     def _create_robot(**kwargs):
         sig = inspect.signature(get_yam_robot)
+        
+        if "enable_auto_recovery" not in sig.parameters:
+            logger.warning("CAUTION: Current version of i2rt does not support 'enable_auto_recovery'. Reinstall the virtual environment to update.")
+        
         supported = {
             k: v
             for k, v in kwargs.items()
