@@ -77,14 +77,14 @@ class YamArm(Node):
         self.run = self.pubreq
         super().__post_init__()
 
-	def _create_robot(**kwargs):
-		sig = inspect.signature(get_yam_robot)
-		supported = {
-			k: v
-			for k, v in kwargs.items()
-			if k in sig.parameters
-		}
-		return get_yam_robot(**supported)
+    def _create_robot(**kwargs):
+        sig = inspect.signature(get_yam_robot)
+        supported = {
+            k: v
+            for k, v in kwargs.items()
+            if k in sig.parameters
+        }
+        return get_yam_robot(**supported)
 
     def pubreq(self):
         # Without this, one transient CAN error kills i2rt's control loop thread and the arm
