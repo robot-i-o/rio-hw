@@ -1,6 +1,7 @@
 import queue
 from enum import Enum, auto
 from typing import TYPE_CHECKING
+import inspect
 
 import numpy as np
 
