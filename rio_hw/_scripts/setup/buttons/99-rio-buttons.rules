@@ -1,0 +1,18 @@
+# Grant the robot host's operator access to USB button pads used for station control,
+# and give them a stable device node independent of /dev/input/eventN numbering.
+#
+# Install:
+#   sudo cp 99-rio-buttons.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   # replug the device
+#
+# Without this, /dev/input/event* is root:input 0660 and is only readable by members of
+# the 'input' group. A local desktop session is granted access by uaccess, but an SSH
+# session is not, so the device is invisible to a script started over SSH.
+
+# PCsensor MK321U 3-button pad
+SUBSYSTEM=="input", ATTRS{idVendor}=="3553", ATTRS{idProduct}=="c011", MODE="0660", GROUP="input"
+KERNEL=="event*", SUBSYSTEM=="input", ATTRS{idVendor}=="3553", ATTRS{idProduct}=="c011", ATTRS{bInterfaceProtocol}=="1", SYMLINK+="rio-buttons"
+
+# Add further pads here, copying the two lines above and changing the USB ids.
+# Find the ids with: lsusb
