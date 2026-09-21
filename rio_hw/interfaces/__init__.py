@@ -1,4 +1,5 @@
 from .avp_stream import AvpStreamClient, AvpStreamServer
+from .evdev_keyboard import EvdevKeyboardClient, EvdevKeyboardServer
 from .gamepad import GamepadClient, GamepadServer
 from .gello import GelloClient, GelloServer
 from .joycon import JoyconClient, JoyconServer
@@ -11,6 +12,7 @@ from .x_robotoolkit import XRobotoolkitClient, XRobotoolkitServer
 
 __all__ = [
     "AvpStream",
+    "EvdevKeyboard",
     "Gamepad",
     "Gello",
     "Joycon",
