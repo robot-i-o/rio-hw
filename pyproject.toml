@@ -32,9 +32,6 @@ dependencies = [
 ]
 
 [tool.uv]
-# pip install atomics --no-binary=atomics --no-cache --force-reinstall
-# https://github.com/doodspav/atomics/issues/5
-no-binary-package = ["atomics"]
 override-dependencies = [
     "numpy>=2.0",  # in case other packages pin numpy<2.0.0
 ]
@@ -85,7 +82,6 @@ middlewares = [
     "portal",
     # "rclpy",  # (ros2)
     "roslibpy",  # (rosbridge w/o local ros2 dependency)
-    "atomics",  # shm, shmf
     "eclipse-zenoh",  # zenoh
     "zerorpc",
     "pyzmq",  # zmq
